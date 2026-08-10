@@ -1,4 +1,4 @@
-FROM python:3.10-slim-bookworm
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
@@ -8,17 +8,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libtesseract-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copier les requirements de l'API
+# Copier les requirements et installer
 COPY api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Créer les dossiers nécessaires
-RUN mkdir -p /app/api /app/models
+RUN mkdir -p /app/api/static /app/models
 
-# Copier le code de l'API
-COPY api /app/api
-# Au build final, vous décommenterez cette ligne pour copier votre modèle
-# COPY models/tmz_latn.traineddata /app/models/
+# Copier le modèle Tamazight
+COPY models/tmz_latn.traineddata /app/models/
+
+# Copier le code de l'API et le frontend
+COPY api/ /app/api/
 
 ENV TESSDATA_PREFIX=/app/models
 

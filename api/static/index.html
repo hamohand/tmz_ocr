@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="kab" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="API OCR pour la reconnaissance de texte Tamazight en caractères latins">
+    <title>ⵣ Tamazight OCR — Reconnaissance de texte amazigh</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1a6b3c;
+            --primary-light: #2d9a56;
+            --primary-dark: #0e4d2a;
+            --accent: #e8b731;
+            --accent-light: #f0cc5e;
+            --bg: #0f1117;
+            --bg-card: #1a1d27;
+            --bg-card-hover: #22263a;
+            --bg-input: #13151d;
+            --text: #e8eaf0;
+            --text-muted: #8a8fa8;
+            --border: #2a2e3d;
+            --success: #2dd47b;
+            --error: #e85555;
+            --radius: 12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        /* ── Header ─────────────────── */
+        .header {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 50%, var(--primary-light) 100%);
+            padding: 2rem 1.5rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.4;
+        }
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            position: relative;
+            letter-spacing: -0.5px;
+        }
+        .header h1 .tifinagh {
+            font-size: 2.4rem;
+            margin-right: 0.3rem;
+        }
+        .header p {
+            margin-top: 0.5rem;
+            opacity: 0.85;
+            font-size: 0.95rem;
+            position: relative;
+        }
+        .header .badge {
+            display: inline-block;
+            margin-top: 0.75rem;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(8px);
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            position: relative;
+        }
+
+        /* ── Container ──────────────── */
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+
+        /* ── Status Bar ─────────────── */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 1.5rem;
+            font-size: 0.85rem;
+        }
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            animation: pulse 2s infinite;
+        }
+        .status-dot.online { background: var(--success); }
+        .status-dot.error { background: var(--error); animation: none; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* ── Upload Zone ────────────── */
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: var(--bg-card);
+            position: relative;
+        }
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--primary-light);
+            background: var(--bg-card-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(26, 107, 60, 0.15);
+        }
+        .upload-zone .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .upload-zone h3 {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .upload-zone p {
+            color: var(--text-muted);
+            font-size: 0.88rem;
+        }
+        .upload-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        /* ── Options ────────────────── */
+        .options {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        .option-group label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.4rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .option-group select {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 0.9rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .option-group select:focus {
+            outline: none;
+            border-color: var(--primary-light);
+        }
+
+        /* ── Button ─────────────────── */
+        .btn-ocr {
+            width: 100%;
+            padding: 0.9rem;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+            letter-spacing: 0.3px;
+        }
+        .btn-ocr:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(26, 107, 60, 0.3);
+        }
+        .btn-ocr:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-ocr.loading {
+            position: relative;
+            color: transparent;
+        }
+        .btn-ocr.loading::after {
+            content: '';
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 20px; height: 20px;
+            margin: -10px 0 0 -10px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Preview ────────────────── */
+        .preview {
+            margin-top: 1.5rem;
+            display: none;
+        }
+        .preview.visible { display: block; }
+        .preview img {
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            background: #000;
+        }
+        .preview .filename {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* ── Result ─────────────────── */
+        .result {
+            margin-top: 1.5rem;
+            display: none;
+        }
+        .result.visible { display: block; }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .result-header h3 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        .result-header .confidence {
+            font-size: 0.82rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 16px;
+            font-weight: 600;
+        }
+        .confidence.high { background: rgba(45,212,123,0.15); color: var(--success); }
+        .confidence.medium { background: rgba(232,183,49,0.15); color: var(--accent); }
+        .confidence.low { background: rgba(232,85,85,0.15); color: var(--error); }
+
+        .result-text {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.2rem;
+            font-size: 1.05rem;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            min-height: 80px;
+            position: relative;
+        }
+        .result-text .empty {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+        .btn-action {
+            padding: 0.45rem 0.9rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .btn-action:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--primary-light);
+        }
+
+        /* ── Error ──────────────────── */
+        .error-msg {
+            background: rgba(232,85,85,0.1);
+            border: 1px solid rgba(232,85,85,0.3);
+            border-radius: var(--radius);
+            padding: 1rem;
+            color: var(--error);
+            font-size: 0.9rem;
+            margin-top: 1rem;
+            display: none;
+        }
+        .error-msg.visible { display: block; }
+
+        /* ── Comparaison ───────────── */
+        .compare-section {
+            margin-top: 1.5rem;
+            display: none;
+        }
+        .compare-section.visible { display: block; }
+        .compare-section h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+        .compare-input textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 0.8rem;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text);
+            font-size: 0.95rem;
+            font-family: inherit;
+            line-height: 1.7;
+            resize: vertical;
+        }
+        .compare-input textarea:focus {
+            outline: none;
+            border-color: var(--primary-light);
+        }
+        .compare-input textarea::placeholder {
+            color: var(--text-muted);
+        }
+        .btn-compare {
+            margin-top: 0.75rem;
+            padding: 0.6rem 1.2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--primary-light);
+            border-radius: 8px;
+            color: var(--primary-light);
+            font-size: 0.88rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            font-weight: 500;
+        }
+        .btn-compare:hover {
+            background: var(--primary-dark);
+            color: white;
+        }
+        .diff-display {
+            margin-top: 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.2rem;
+            font-size: 1.05rem;
+            line-height: 2;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .diff-equal { color: var(--text); }
+        .diff-replace {
+            background: rgba(232, 85, 85, 0.2);
+            color: #ff7b7b;
+            border-radius: 3px;
+            padding: 0.1rem 0.15rem;
+            text-decoration: underline;
+            text-decoration-style: wavy;
+            text-decoration-color: var(--error);
+            cursor: help;
+            position: relative;
+        }
+        .diff-delete {
+            background: rgba(232, 85, 85, 0.15);
+            color: #ff6b6b;
+            text-decoration: line-through;
+            border-radius: 3px;
+            padding: 0.1rem 0.15rem;
+            opacity: 0.7;
+            cursor: help;
+        }
+        .diff-insert {
+            background: rgba(45, 212, 123, 0.2);
+            color: var(--success);
+            border-radius: 3px;
+            padding: 0.1rem 0.15rem;
+            cursor: help;
+        }
+        .diff-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+        .stat-card {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.7rem;
+            text-align: center;
+        }
+        .stat-card .stat-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 0.2rem;
+        }
+        .stat-card .stat-label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .stat-card.good .stat-value { color: var(--success); }
+        .stat-card.warn .stat-value { color: var(--accent); }
+        .stat-card.bad .stat-value { color: var(--error); }
+        .diff-legend {
+            display: flex;
+            gap: 1.2rem;
+            margin-top: 0.75rem;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+        .diff-legend span {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .legend-dot {
+            width: 12px; height: 12px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        .legend-dot.replace { background: rgba(232, 85, 85, 0.3); }
+        .legend-dot.delete { background: rgba(232, 85, 85, 0.2); }
+        .legend-dot.insert { background: rgba(45, 212, 123, 0.25); }
+        .char-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+        }
+        .char-table th {
+            background: var(--bg-input);
+            padding: 0.6rem 0.5rem;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            border-bottom: 2px solid var(--border);
+        }
+        .char-table td {
+            padding: 0.5rem;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+        .char-table tr:hover { background: var(--bg-card-hover); }
+        .char-cell {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+        .pct-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .pct-bar-fill {
+            height: 6px;
+            border-radius: 3px;
+            flex: 1;
+            background: var(--border);
+            overflow: hidden;
+        }
+        .pct-bar-fill > div {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+        .pct-ok { background: var(--success); }
+        .pct-fail { background: var(--error); }
+        .confusion-tag {
+            display: inline-block;
+            background: rgba(232,85,85,0.15);
+            color: var(--error);
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin: 0.1rem;
+        }
+        .global-bar {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .global-stat {
+            flex: 1;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.8rem;
+            text-align: center;
+        }
+        .global-stat .gs-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        .global-stat .gs-label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 0.2rem;
+        }
+
+        /* ── Footer ─────────────────── */
+        .footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+        .footer a {
+            color: var(--primary-light);
+            text-decoration: none;
+        }
+
+        /* ── Toast ──────────────────── */
+        .toast {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.75rem 1.25rem;
+            font-size: 0.85rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        @media (max-width: 600px) {
+            .options { grid-template-columns: 1fr; }
+            .header h1 { font-size: 1.5rem; }
+            .upload-zone { padding: 2rem 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+<header class="header">
+    <h1><span class="tifinagh">ⵣ</span> Tamazight OCR</h1>
+    <p>Reconnaissance de texte amazigh en caractères latins</p>
+    <span class="badge">v4.0 — tmz_latn (BCER 0.989%) + kab (Bouaziz) — Mode comparaison</span>
+</header>
+
+<div class="container">
+
+    <!-- Status -->
+    <div class="status-bar" id="statusBar">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Vérification...</span>
+    </div>
+
+    <!-- Upload -->
+    <div class="upload-zone" id="uploadZone">
+        <div class="icon">📄</div>
+        <h3>Glissez une image ici</h3>
+        <p>ou cliquez pour sélectionner — PNG, JPG, TIFF, BMP, WebP</p>
+        <input type="file" id="fileInput" accept="image/*">
+    </div>
+
+    <!-- Preview -->
+    <div class="preview" id="preview">
+        <img id="previewImg" alt="Aperçu de l'image">
+        <div class="filename">
+            <span id="fileName"></span>
+            <span id="fileSize"></span>
+        </div>
+    </div>
+
+    <!-- Options -->
+    <div class="options">
+        <div class="option-group">
+            <label>Prétraitement</label>
+            <select id="preprocess">
+                <option value="auto">Auto (recommandé)</option>
+                <option value="raw">Aucun (image brute)</option>
+                <option value="binarize">Binarisation</option>
+            </select>
+        </div>
+        <div class="option-group">
+            <label>Mode de segmentation</label>
+            <select id="psm">
+                <option value="3">Auto (défaut)</option>
+                <option value="6">Bloc de texte uniforme</option>
+                <option value="4">Colonne de texte</option>
+                <option value="7">Ligne unique</option>
+                <option value="13">Ligne brute</option>
+            </select>
+            <div class="option-group">
+            <label>Mode OCR</label>
+            <select id="ocrMode">
+                <option value="hybrid">Hybride fra+tmz (recommandé)</option>
+                <option value="tmz_only">tmz_latn seul</option>
+                <option value="kab_only">kab Bouaziz seul</option>
+                <option value="compare">⚔️ Comparer tmz_latn vs kab</option>
+            </select>
+        </div>
+    </div>
+    </div>
+
+    <!-- Button -->
+    <button class="btn-ocr" id="btnOcr" disabled>
+        Lancer la reconnaissance ⵣ
+    </button>
+
+    <!-- Error -->
+    <div class="error-msg" id="errorMsg"></div>
+
+    <!-- Result -->
+    <div class="result" id="result">
+        <div class="result-header">
+            <h3>Texte reconnu</h3>
+            <span class="confidence" id="confidenceBadge"></span>
+        </div>
+        <div class="result-text" id="resultText"></div>
+        <div id="sourcesInfo" style="margin-top:0.6rem;font-size:0.78rem;color:var(--text-muted);display:none"></div>
+        <div class="result-actions">
+            <button class="btn-action" onclick="copyText()">📋 Copier</button>
+            <button class="btn-action" onclick="downloadText()">💾 Télécharger .txt</button>
+            <button class="btn-action" onclick="resetAll()">🔄 Nouvelle image</button>
+        </div>
+    </div>
+
+    <!-- Comparaison -->
+    <div class="compare-section" id="compareSection">
+        <h3>🔍 Comparer avec le texte original</h3>
+        <div class="compare-input">
+            <textarea id="originalText" placeholder="Collez ici le texte original pour comparer avec le résultat OCR..."></textarea>
+        </div>
+        <button class="btn-compare" id="btnCompare" onclick="compareTexts()">
+            Comparer les textes
+        </button>
+        <div id="diffResult" style="display:none">
+            <div id="globalStats" class="global-bar"></div>
+            <div class="diff-legend">
+                <span><span class="legend-dot replace"></span> Remplacé</span>
+                <span><span class="legend-dot delete"></span> Supprimé</span>
+                <span><span class="legend-dot insert"></span> Ajouté</span>
+            </div>
+            <div class="diff-display" id="diffDisplay"></div>
+            <div id="charTableContainer"></div>
+        </div>
+    </div>
+
+</div>
+
+<footer class="footer">
+    <p>ⵣ Tamazight OCR — Modèle entraîné sur 4 913 phrases Kabyle (Tatoeba)<br>
+    Propulsé par Tesseract 5 • FastAPI • tmz_latn.traineddata</p>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+let selectedFile = null;
+let lastResult = null;
+
+// ── Initialisation ──────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        const dot = $('statusDot');
+        const text = $('statusText');
+
+        const tmzExists = data.models && data.models.tmz_latn && data.models.tmz_latn.exists;
+        const kabExists = data.models && data.models.kab && data.models.kab.exists;
+        const tmzSize = tmzExists ? data.models.tmz_latn.size_mb : 0;
+
+        if (tmzExists) {
+            dot.classList.add('online');
+            let msg = `tmz_latn (${tmzSize} Mo)`;
+            if (kabExists) msg += ` + kab (${data.models.kab.size_mb} Mo)`;
+            text.textContent = `${msg} — Tesseract ${data.tesseract_version}`;
+        } else {
+            dot.classList.add('error');
+            text.textContent = 'Modèle tmz_latn.traineddata non trouvé !';
+        }
+    } catch (e) {
+        $('statusDot').classList.add('error');
+        $('statusText').textContent = 'API non disponible';
+    }
+});
+
+// ── Upload & Drag/Drop ──────────────
+const uploadZone = $('uploadZone');
+const fileInput = $('fileInput');
+
+['dragenter', 'dragover'].forEach(evt => {
+    uploadZone.addEventListener(evt, e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+});
+['dragleave', 'drop'].forEach(evt => {
+    uploadZone.addEventListener(evt, e => { e.preventDefault(); uploadZone.classList.remove('dragover'); });
+});
+
+uploadZone.addEventListener('drop', e => {
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) handleFile(file);
+});
+
+fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+});
+
+function handleFile(file) {
+    selectedFile = file;
+    $('btnOcr').disabled = false;
+    $('errorMsg').classList.remove('visible');
+    $('result').classList.remove('visible');
+
+    // Preview
+    const reader = new FileReader();
+    reader.onload = e => {
+        $('previewImg').src = e.target.result;
+        $('preview').classList.add('visible');
+    };
+    reader.readAsDataURL(file);
+
+    $('fileName').textContent = file.name;
+    $('fileSize').textContent = (file.size / 1024).toFixed(1) + ' Ko';
+}
+
+// ── OCR ─────────────────────────────
+$('btnOcr').addEventListener('click', async () => {
+    if (!selectedFile) return;
+
+    const btn = $('btnOcr');
+    btn.disabled = true;
+    btn.classList.add('loading');
+    $('errorMsg').classList.remove('visible');
+    $('result').classList.remove('visible');
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('preprocess', $('preprocess').value);
+    formData.append('psm', $('psm').value);
+    formData.append('confidence', 'true');
+    formData.append('mode', $('ocrMode').value);
+
+    try {
+        const res = await fetch('/api/ocr', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.detail || 'Erreur OCR');
+
+        lastResult = data;
+
+        // Mode comparaison : affichage côte à côte
+        if (data.mode === 'compare') {
+            const tmzText = data.tmz_latn?.text || '';
+            const kabText = data.kab?.text || '';
+            const tmzConf = data.tmz_latn?.avg_confidence?.toFixed(0) || '?';
+            const kabConf = data.kab?.avg_confidence?.toFixed(0) || '?';
+            $('resultText').innerHTML = `
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div style="padding:1rem;background:var(--bg-input);border-radius:8px;border:1px solid var(--primary);">
+                        <div style="font-weight:600;color:var(--primary-light);margin-bottom:0.5rem;">📗 tmz_latn <span style="font-size:0.8rem;opacity:0.7;">(${tmzConf}% conf.)</span></div>
+                        <div style="white-space:pre-wrap;font-size:0.95rem;">${tmzText || '<em style="opacity:0.5">Aucun texte</em>'}</div>
+                    </div>
+                    <div style="padding:1rem;background:var(--bg-input);border-radius:8px;border:1px solid var(--accent);">
+                        <div style="font-weight:600;color:var(--accent-light);margin-bottom:0.5rem;">📘 kab Bouaziz <span style="font-size:0.8rem;opacity:0.7;">(${kabConf}% conf.)</span></div>
+                        <div style="white-space:pre-wrap;font-size:0.95rem;">${kabText || '<em style="opacity:0.5">Aucun texte</em>'}</div>
+                    </div>
+                </div>
+            `;
+        } else {
+            const text = data.text || '';
+            $('resultText').innerHTML = text ? text : '<span class="empty">Aucun texte détecté dans l\'image</span>';
+        }
+
+        // Confidence badge
+        const badge = $('confidenceBadge');
+        if (data.avg_confidence !== undefined) {
+            const conf = data.avg_confidence;
+            badge.textContent = `${conf.toFixed(0)}% confiance`;
+            badge.className = 'confidence ' + (conf >= 75 ? 'high' : conf >= 50 ? 'medium' : 'low');
+            badge.style.display = '';
+        } else {
+            badge.style.display = 'none';
+        }
+
+        // Sources info (mode hybride)
+        const srcInfo = $('sourcesInfo');
+        if (data.sources) {
+            const s = data.sources;
+            const total = (s['tmz_latn'] || 0) + (s['tmz_latn*'] || 0) + (s['fra'] || 0);
+            srcInfo.innerHTML = `Mode hybride — <b>${s['fra'] || 0}</b> mots via fra, <b>${(s['tmz_latn'] || 0) + (s['tmz_latn*'] || 0)}</b> via tmz_latn (dont <b>${s['tmz_latn*'] || 0}</b> forcés car car. spéciaux)`;
+            srcInfo.style.display = '';
+        } else {
+            srcInfo.style.display = 'none';
+        }
+
+        $('result').classList.add('visible');
+
+        // Afficher la section de comparaison
+        $('compareSection').classList.add('visible');
+        $('diffResult').style.display = 'none';
+
+    } catch (e) {
+        $('errorMsg').textContent = '❌ ' + e.message;
+        $('errorMsg').classList.add('visible');
+    } finally {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+    }
+});
+
+// ── Actions ─────────────────────────
+function copyText() {
+    const text = lastResult?.text || '';
+    navigator.clipboard.writeText(text).then(() => showToast('✅ Texte copié !'));
+}
+
+function downloadText() {
+    const text = lastResult?.text || '';
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (lastResult?.filename || 'ocr') + '.txt';
+    a.click();
+    showToast('💾 Fichier téléchargé');
+}
+
+function resetAll() {
+    selectedFile = null;
+    lastResult = null;
+    fileInput.value = '';
+    $('preview').classList.remove('visible');
+    $('result').classList.remove('visible');
+    $('compareSection').classList.remove('visible');
+    $('errorMsg').classList.remove('visible');
+    $('btnOcr').disabled = true;
+    $('originalText').value = '';
+    $('diffResult').style.display = 'none';
+}
+
+function showToast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── Comparaison de textes ─────────────
+async function compareTexts() {
+    const original = $('originalText').value.trim();
+    const ocrText = lastResult?.text || '';
+
+    if (!original) {
+        showToast('⚠️ Collez le texte original d\'abord');
+        return;
+    }
+    if (!ocrText) {
+        showToast('⚠️ Lancez d\'abord une reconnaissance OCR');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('original', original);
+    formData.append('ocr_result', ocrText);
+
+    try {
+        const res = await fetch('/api/compare', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Erreur');
+
+        // Construire le diff visuel
+        let html = '';
+        for (const seg of data.diff_segments) {
+            const escaped_ocr = escapeHtml(seg.ocr);
+            const escaped_orig = escapeHtml(seg.original);
+
+            if (seg.type === 'equal') {
+                html += `<span class="diff-equal">${escaped_ocr}</span>`;
+            } else if (seg.type === 'replace') {
+                html += `<span class="diff-replace" title="Original: ${escaped_orig}">${escaped_ocr}</span>`;
+            } else if (seg.type === 'delete') {
+                html += `<span class="diff-delete" title="Supprimé de l'OCR">${escaped_orig}</span>`;
+            } else if (seg.type === 'insert') {
+                html += `<span class="diff-insert" title="Ajouté par l'OCR">${escaped_ocr}</span>`;
+            }
+        }
+        $('diffDisplay').innerHTML = html;
+
+        // Statistiques globales
+        const g = data.global_stats;
+        const gClass = g.pct_recognized >= 90 ? 'color:var(--success)' : g.pct_recognized >= 70 ? 'color:var(--accent)' : 'color:var(--error)';
+        $('globalStats').innerHTML = `
+            <div class="global-stat">
+                <div class="gs-value" style="${gClass}">${g.pct_recognized}%</div>
+                <div class="gs-label">Reconnaissance</div>
+            </div>
+            <div class="global-stat">
+                <div class="gs-value" style="color:var(--error)">${g.pct_failed}%</div>
+                <div class="gs-label">Échec</div>
+            </div>
+            <div class="global-stat">
+                <div class="gs-value">${g.total_tmz_chars}</div>
+                <div class="gs-label">Car. Tamazight trouvés</div>
+            </div>
+            <div class="global-stat">
+                <div class="gs-value">${g.similarity}%</div>
+                <div class="gs-label">Similarité texte</div>
+            </div>
+        `;
+
+        // Tableau par caractère
+        const table = data.char_table.filter(c => c.total > 0);
+        if (table.length > 0) {
+            let tbl = `<table class="char-table">
+                <tr>
+                    <th>Lettre</th>
+                    <th>Total</th>
+                    <th>% Reconnue</th>
+                    <th>% Non reconnue</th>
+                    <th>Confondue avec</th>
+                </tr>`;
+            for (const c of table) {
+                const okPct = c.pct_recognized ?? 0;
+                const failPct = c.pct_failed ?? 0;
+                const okColor = okPct >= 90 ? 'var(--success)' : okPct >= 70 ? 'var(--accent)' : 'var(--error)';
+                const failColor = failPct > 30 ? 'var(--error)' : failPct > 10 ? 'var(--accent)' : 'var(--text-muted)';
+                const confusions = c.confusions.map(x => `<span class="confusion-tag">${escapeHtml(x.char)} ×${x.count}</span>`).join(' ') || '—';
+                tbl += `<tr>
+                    <td class="char-cell">${escapeHtml(c.char)}</td>
+                    <td>${c.total}</td>
+                    <td>
+                        <div class="pct-bar">
+                            <span style="color:${okColor};font-weight:600;min-width:3em">${okPct}%</span>
+                            <div class="pct-bar-fill"><div class="pct-ok" style="width:${okPct}%"></div></div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="pct-bar">
+                            <span style="color:${failColor};font-weight:600;min-width:3em">${failPct}%</span>
+                            <div class="pct-bar-fill"><div class="pct-fail" style="width:${failPct}%"></div></div>
+                        </div>
+                    </td>
+                    <td>${confusions}</td>
+                </tr>`;
+            }
+            tbl += '</table>';
+            $('charTableContainer').innerHTML = tbl;
+        } else {
+            $('charTableContainer').innerHTML = '<p style="color:var(--text-muted);text-align:center;margin-top:1rem">Aucun caractère Tamazight spécifique trouvé dans le texte original.</p>';
+        }
+
+        $('diffResult').style.display = 'block';
+
+    } catch (e) {
+        showToast('❌ ' + e.message);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+</body>
+</html>
