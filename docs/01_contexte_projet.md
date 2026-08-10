@@ -38,6 +38,6 @@ Nous avons donc créé `C:\Users\hamoh\Documents\travail\tmz\tmz_ocr` avec une d
 ~~4. Lancer l'entraînement `make training ...` via tesstrain.~~ (Terminé)
 ~~5. Déplacer le modèle produit dans `/models/tmz_latn.traineddata`.~~ (Terminé)
 ~~6. Valider la reconnaissance via l'API locale (`/api`).~~ (Terminé)
-7. **Objectif Final** : Une fois le fichier validé, on l'intégrera définitivement dans l'API principale (`easytess_ocr_api`).
+~~7. **Objectif Final** : Une fois le fichier validé, on l'intégrera définitivement dans l'API principale (`easytess_ocr_api`).~~ (Terminé)
 
-> **Note :** Le modèle est désormais opérationnel en version v3 avec d'excellentes performances : un taux d'erreur par caractère (BCER) de 1.137%.
+> **Note :** Le modèle est désormais opérationnel en version v4 avec des performances exceptionnelles : un taux d'erreur par caractère (BCER) de 0.989% sur plus de 22 000 lignes avec Data Augmentation.

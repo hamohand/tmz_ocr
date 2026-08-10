@@ -8,18 +8,20 @@ Ce document détaille les ressources utilisées pour l'entraînement du modèle 
 - **Source** : Sifal/Kabyle-French, issu de Tatoeba (via Hugging Face).
 - **Taille** : 4 913 phrases réelles en Kabyle.
 
-### Corpus Enrichi (v3)
-- **Source** : Généré à partir du corpus original.
-- **Taille** : 18 055 lignes (`lignes_tamazight_enrichi.txt`).
+### Corpus Enrichi (v4)
+- **Taille** : 22 524 lignes avec renforcement des caractères spéciaux majuscules. Chaque caractère majuscule spécial apparaît environ 500 fois.
 - **Scripts utilisés** :
-  - `enrich_corpus.py` : Multiplie les phrases contenant des caractères spéciaux (x3) et des caractères rares (x5) pour forcer le modèle à mieux les apprendre.
-  - `reinforce_cedilla.py` et `reinforce_weak_chars.py` : Scripts de renforcement spécifiques pour les caractères difficiles.
-- **Fichiers additionnels** : `lignes_tamazight_renforce.txt`, `lignes_tamazight_v3.txt`.
+  - `reinforce_uppercase.py` : Renforcement spécifique des majuscules.
+  - `enrich_corpus.py`, `reinforce_cedilla.py`, `reinforce_weak_chars.py` pour les autres caractères.
+
+## 📝 Wordlist et Fichiers de Configuration
+- **Wordlist** : 78 203 mots uniques extraits du corpus HuggingFace Sifal/Kabyle-French (115K phrases). Construite avec `build_wordlist_hf.py` et `build_wordlist.py`.
+- **Fichiers de ponctuation et chiffres** : `tmz_latn.punc` (19 caractères) et `tmz_latn.numbers` (10 chiffres).
 
 ## 🖼 Ground Truth (Images + Texte)
 
-- **Volume total** : 13 711 paires générées (`.tif` + `.gt.txt`) à partir des 18 055 lignes enrichies (augmentation depuis les 4 913 initiales).
-- *Note : Le fichier corrompu `tmz_latn_9586` a été exclu de l'entraînement v3.*
+- **Volume total** : 22 523 images augmentées (`.tif` + `.gt.txt`).
+- **Data Augmentation** : 9 transformations appliquées (bruit Gaussien, rotation, flou, contraste, luminosité, arrière-plans texturés, tailles de polices variables, etc.) pour rendre le modèle plus robuste aux scans réels.
 
 ## 🔤 Polices (Fonts)
 
@@ -29,9 +31,9 @@ Ce document détaille les ressources utilisées pour l'entraînement du modèle 
 
 ## 🔠 Alphabet et Caractères Spéciaux
 
-Le modèle prend en charge l'alphabet latin enrichi utilisé pour le Tamazight. Une attention particulière a été portée sur les 20 caractères spéciaux suivants (minuscules et majuscules) :
-**č, ḍ, ǧ, ḥ, ɣ, ṛ, ṣ, ṭ, ẓ, ɛ**
+Le modèle prend en charge l'alphabet latin enrichi utilisé pour le Tamazight. Une attention particulière a été portée sur les 22 caractères spéciaux suivants (11 paires min/maj) :
+**č/Č, ḍ/Ḍ, ǧ/Ǧ, ḥ/Ḥ, ɣ/Ɣ, ṛ/Ṛ, ṣ/Ṣ, ṭ/Ṭ, ẓ/Ẓ, ɛ/Ɛ, ţ/Ţ**
 
-## 🤖 Modèle de Base
-- L'entraînement a été réalisé en fine-tuning à partir du modèle français `fra.traineddata`.
-- **Important** : La version utilisée est la version *float* provenant de `tessdata_best`, et non la version integer du dépôt apt.
+## 🤖 Modèle de Base et Modèle de Comparaison
+- L'entraînement v4 a été réalisé en *fine-tuning* (2ème passe) à partir du modèle `tmz_latn` de la v3 (et non plus depuis le français). Le modèle fait environ 4.0 MB.
+- **Modèle `kab`** : Le modèle de Bouaziz Ait Driss a été intégré pour comparaison. Tests sur 6 scans réels (Tagrest urɣu, Times d waman, Tawaɣit tayri, Amdan taggezt) : 87.6% de confiance pour le modèle v4, qui surpasse le modèle `kab` sur 4 pages sur 6.

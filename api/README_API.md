@@ -1,25 +1,30 @@
-# Démarrer l'API OCR Tamazight
+# Démarrer l'API OCR Tamazight v4.0.0
 
-Ce dossier contient une petite API autonome pour tester et utiliser votre modèle.
+Ce dossier contient une API autonome pour tester et utiliser votre modèle. Elle inclut 4 modes OCR :
+- `hybride` (`fra` + `tmz_latn`)
+- `tmz_only`
+- `kab_only` (utilise le modèle de Bouaziz Ait Driss pour l'évaluation)
+- `compare` (compare les résultats de `tmz_latn` et `kab`)
 
 ## En local (sans Docker)
 
 1. Assurez-vous d'avoir Tesseract installé sur votre machine (`sudo apt install tesseract-ocr`).
-2. Placez votre modèle final dans le dossier parent : `../models/tmz_latn.traineddata`.
+2. Placez vos modèles (`tmz_latn.traineddata` et `kab.traineddata`) dans le dossier `../models/`.
 3. Installez les dépendances :
    ```bash
    pip install -r requirements.txt
    ```
-4. Lancez le serveur :
+4. Lancez le serveur avec le script fourni (qui prépare la variable `TESSDATA_PREFIX`) :
    ```bash
-   uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+   ./start_api.sh
    ```
-5. Testez l'API : Envoyez une requête POST sur `http://localhost:8000/ocr` avec un fichier nomé `file` contenant votre image.
+   *(Ou via `uvicorn app:app --host 0.0.0.0 --port 8000 --reload` si l'environnement est bien configuré).*
+5. Testez l'API : Envoyez une requête POST sur `http://localhost:8000/ocr` avec un fichier nommé `file` contenant votre image, et paramétrez le champ `mode` (par exemple `mode=compare`).
 
 ## Avec Docker
 
-1. Copiez d'abord votre modèle final dans le dossier `models/`.
-2. Décommentez la ligne `COPY models/tmz_latn.traineddata /app/models/` dans le fichier `Dockerfile`.
+1. Copiez d'abord vos modèles dans le dossier `models/`.
+2. Assurez-vous que les lignes `COPY models/tmz_latn.traineddata /app/models/` et `COPY models/kab.traineddata /app/models/` sont actives dans le fichier `Dockerfile`.
 3. Depuis la racine du projet (le dossier `tmz_ocr`), lancez la construction :
    ```bash
    docker build -t tamazight-ocr-api -f api/Dockerfile .
