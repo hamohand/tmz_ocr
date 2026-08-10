@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# Ground Truth images (trop volumineuses pour git)
+training/data/tmz_latn-ground-truth/
+
+# Wordlist (généré par script)
+training/data/tmz_latn.wordlist
+
+# Fichiers temporaires
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Tesseract training submodule build artifacts
+training/tesstrain/data/
+
+# Fichiers de test temporaires
+tests/samples/
+
+# Logs
+*.log
