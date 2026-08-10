@@ -32,10 +32,12 @@ Nous avons donc créé `C:\Users\hamoh\Documents\travail\tmz\tmz_ocr` avec une d
 
 ## 5. Prochaines Étapes (Roadmap)
 
-1. Rassembler un corpus de textes en Tamazight Latin.
-2. Rassembler les polices (`.ttf`) utilisées pour ces textes.
-3. Générer le "Ground Truth" (Images + Fichiers textes correspondants) dans `/training/data/tmz_latn-ground-truth/`.
-4. Lancer l'entraînement `make training ...` via tesstrain.
-5. Déplacer le modèle produit dans `/models/tmz_latn.traineddata`.
-6. Valider la reconnaissance via l'API locale (`/api`).
+~~1. Rassembler un corpus de textes en Tamazight Latin.~~ (Terminé)
+~~2. Rassembler les polices (`.ttf`) utilisées pour ces textes.~~ (Terminé)
+~~3. Générer le "Ground Truth" (Images + Fichiers textes correspondants) dans `/training/data/tmz_latn-ground-truth/`.~~ (Terminé)
+~~4. Lancer l'entraînement `make training ...` via tesstrain.~~ (Terminé)
+~~5. Déplacer le modèle produit dans `/models/tmz_latn.traineddata`.~~ (Terminé)
+~~6. Valider la reconnaissance via l'API locale (`/api`).~~ (Terminé)
 7. **Objectif Final** : Une fois le fichier validé, on l'intégrera définitivement dans l'API principale (`easytess_ocr_api`).
+
+> **Note :** Le modèle est désormais opérationnel en version v3 avec d'excellentes performances : un taux d'erreur par caractère (BCER) de 1.137%.
