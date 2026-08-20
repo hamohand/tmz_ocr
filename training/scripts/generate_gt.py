@@ -11,7 +11,7 @@ import numpy as np
 # Dossiers d'entrée / sortie
 FONTS_DIR = "../data/fonts"
 OUTPUT_DIR = "../data/tmz_latn-ground-truth"
-INPUT_TEXT_FILE = "lignes_tamazight_v4.txt"
+INPUT_TEXT_FILE = "lignes_tamazight_v5.txt"
 
 # Paramètres de l'image générée
 IMAGE_HEIGHT = 50       # Hauteur fixe de l'image (bon pour l'entraînement LSTM)
