@@ -1,7 +1,7 @@
 """
 Tamazight OCR API — API dédiée à la reconnaissance de texte Tamazight Latin
 Modèles disponibles :
-  - tmz_latn.traineddata : notre modèle v4 (BCER 0.989%, 22 523 images augmentées, wordlist 78K)
+  - tmz_latn.traineddata : notre modèle v5 (BCER 1.271%, 23 607 GT dont 548 vrais scans, wordlist 78K, support ʷ/ᵒ)
   - kab.traineddata : modèle Kabyle de Bouaziz Ait Driss (BCER 2.9%, 26 000 itérations)
 
 Modes OCR :
@@ -34,7 +34,7 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app = FastAPI(
     title="ⵣ Tamazight OCR API",
     description="API de reconnaissance optique de caractères pour le Tamazight Latin (Kabyle). Modèles : tmz_latn + kab (Bouaziz).",
-    version="4.0.0",
+    version="5.0.0",
 )
 
 app.add_middleware(
