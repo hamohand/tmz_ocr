@@ -25,6 +25,7 @@ Le modèle a été significativement amélioré lors de la Session 4 (9-10 Août
 - **Wordlist** : 78 203 mots uniques intégrés (source: HuggingFace Sifal/Kabyle-French, 115K phrases).
 - **Ground Truth (GT)** : 22 523 images générées avec augmentation des données (bruit Gaussien, rotation, flou, contraste, luminosité, arrière-plans texturés, tailles de polices variables).
 - **Caractères spéciaux pris en charge (22)** : 11 paires min/maj (č/Č, ḍ/Ḍ, ǧ/Ǧ, ḥ/Ḥ, ɣ/Ɣ, ṛ/Ṛ, ṣ/Ṣ, ṭ/Ṭ, ẓ/Ẓ, ɛ/Ɛ, ţ/Ţ).
+  > **Note** : ɛ = Latin Small Letter Open E (U+025B), à ne pas confondre avec le epsilon grec (ε, U+03B5).
 - **Fichiers annexes** : `tmz_latn.punc` (19 caractères), `tmz_latn.numbers` (10 chiffres).
 
 ## 🛠 Structure du Projet

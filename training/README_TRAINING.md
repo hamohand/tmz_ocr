@@ -29,8 +29,8 @@ Le dossier `data/tmz_latn-ground-truth/` doit contenir des paires de fichiers :
 
 ## Étape 3 : Préparer et Enrichir le Corpus
 
-L'entraînement nécessite un corpus de bonne qualité. L'utilisation des scripts d'enrichissement (ex: `enrich_corpus.py` pour suréchantillonner les caractères spéciaux et rares, `reinforce_uppercase.py` pour garantir l'apprentissage des majuscules comme ţ/Ţ) est vivement conseillée (voir `scripts/README_SCRIPTS.md`).
-À l'issue de cette étape, pour le modèle v4, un corpus de 22 524 lignes a été rendu sous forme de 22 523 paires d'images transformées (avec augmentation de données : bruit, rotation, flou, etc.).
+L'entraînement nécessite un corpus de bonne qualité. L'utilisation des scripts d'enrichissement (ex: `enrich_corpus.py` pour suréchantillonner les caractères spéciaux et rares, `reinforce_uppercase.py` pour les majuscules, `enrich_labiovelar.py` pour les consonnes labio-vélarisées ʷ/ᵒ) est vivement conseillée (voir `scripts/README_SCRIPTS.md`).
+À l'issue de cette étape, pour le modèle v5, un corpus de 23 059 lignes synthétiques + 548 lignes de vrais scans corrigés = **23 607 paires GT** au total.
 
 ## Étape 3bis : Dictionnaire de mots (Wordlist)
 
@@ -49,7 +49,7 @@ Pour améliorer la précision linguistique, nous utilisons un dictionnaire gén�
 
 1. Téléchargez la bonne version de `fra.traineddata` (float) et placez-la dans votre répertoire `TESSDATA`, par exemple `/home/hamoh/tmz_training/tesstrain/data/tessdata_best`.
 2. Lancez l'entraînement depuis votre dossier `tesstrain` Linux natif. 
-   **Note sur le 2nd Pass Fine-Tuning** : Pour la v4, nous avons utilisé notre modèle `tmz_latn` v3 existant comme point de départ au lieu du français.
+   **Note sur le Fine-Tuning** : Pour la v5, nous avons utilisé notre modèle `tmz_latn` v4 comme point de départ (3ème passe : fra → v3 → v4 → v5).
 
 ```bash
 cd /home/hamoh/tmz_training/tesstrain/
@@ -58,10 +58,11 @@ make training MODEL_NAME=tmz_latn START_MODEL=tmz_latn TESSDATA=/home/hamoh/tmz_
 
 *(Note : ces commandes peuvent nécessiter des ajustements selon votre OS. Consultez le [README officiel de Tesstrain](https://github.com/tesseract-ocr/tesstrain) pour les détails complets)*
 
-### Résultats Attendus (Modèle v4)
-- **Itérations** : 19 000 au total (meilleur checkpoint atteint à l'itération 5 420).
-- **BCER** (Character Error Rate) : 0.989%
-- **BWER** (Word Error Rate) : 3.000%
+### Résultats Attendus (Modèle v5)
+- **Itérations** : 20 000 au total (meilleur checkpoint à l'itération 19 100).
+- **BCER** (Character Error Rate) : 1.271%
+- **Confiance scans réels** : 86.5% moyenne (90.2% sur ATagrest), gagne sur 4/6 pages vs kab.
+- **Nouveautés** : support labio-vélarisées (ʷ/ᵒ), GT réels de 5 documents corrigés.
 ## Étape 6 : Récupérer le modèle fini
 
 Une fois l'entraînement terminé avec succès, un fichier `tmz_latn.traineddata` sera généré dans `tesstrain/data/tmz_latn/`.

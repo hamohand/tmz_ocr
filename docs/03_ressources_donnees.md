@@ -34,6 +34,8 @@ Ce document détaille les ressources utilisées pour l'entraînement du modèle 
 Le modèle prend en charge l'alphabet latin enrichi utilisé pour le Tamazight. Une attention particulière a été portée sur les 22 caractères spéciaux suivants (11 paires min/maj) :
 **č/Č, ḍ/Ḍ, ǧ/Ǧ, ḥ/Ḥ, ɣ/Ɣ, ṛ/Ṛ, ṣ/Ṣ, ṭ/Ṭ, ẓ/Ẓ, ɛ/Ɛ, ţ/Ţ**
 
+> ⚠️ **Important** : Le caractère **ɛ** utilisé en Tamazight est le **Latin Small Letter Open E** (U+025B), à ne pas confondre avec le **epsilon grec** (ε, U+03B5). Bien qu'ils se ressemblent visuellement, ce sont deux caractères Unicode distincts. Le modèle est entraîné sur le ɛ latin (U+025B).
+
 ## 🤖 Modèle de Base et Modèle de Comparaison
 - L'entraînement v4 a été réalisé en *fine-tuning* (2ème passe) à partir du modèle `tmz_latn` de la v3 (et non plus depuis le français). Le modèle fait environ 4.0 MB.
 - **Modèle `kab`** : Le modèle de Bouaziz Ait Driss a été intégré pour comparaison. Tests sur 6 scans réels (Tagrest urɣu, Times d waman, Tawaɣit tayri, Amdan taggezt) : 87.6% de confiance pour le modèle v4, qui surpasse le modèle `kab` sur 4 pages sur 6.

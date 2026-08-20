@@ -42,23 +42,33 @@ Ce document sert de point de reprise pour continuer le travail sur le projet Tam
 - ✅ Tests réels : 87.6% de confiance moyenne sur 6 pages scannées de M. Bouaziz
 - ✅ Intégration et comparaison avec le modèle `kab` (Bouaziz Ait Driss)
 - ✅ Mise à jour de l'API vers v4.0.0 (correction du health check)
+### Session 5 (11-20 Août 2026)
+- ✅ Création du pipeline PDF vers GT (`pdf_to_gt.py` avec `--split-columns`)
+- ✅ Extraction de 658 lignes depuis 5 documents réels scannés (Dictionnaire Dallet, Smail Abdenbi, Tasɣunt Aselmad, etc.), 548 conservées après filtrage du français (`filter_french_gt.py`)
+- ✅ Ajout des consonnes labio-vélarisées ʷ/ᵒ
+- ✅ Gestion de la régression v5a (pollution par GT français) et amélioration v5b après filtrage
+- ✅ Palette de caractères ajoutée dans `review.html`
+- ✅ **Entraînement v5 complet (v5b)** — BCER = 1.271% (meilleur checkpoint à 19 100/20 000)
+- ✅ **Performances sur scans réels** : 86.5% de confiance moyenne (bat le modèle kab sur 4/6 pages), meilleur résultat à 90.2% (ATagrest_urghu_5)
+- ✅ Enrichissement spécifique des labio-vélarisées (`enrich_labiovelar.py`) et application de corrections (`apply_corrections.py`)
 
 ---
 
-## ✅ Projet terminé — Modèle v4 opérationnel
+## ✅ Projet terminé — Modèle v5 opérationnel
 
-Le modèle `tmz_latn.traineddata` (v4) est **entraîné et hautement performant**.
+Le modèle `tmz_latn.traineddata` (v5) est **entraîné et hautement performant**.
 
-### Performances (Comparaison v1, v3, v4)
+### Performances (Comparaison v3, v4, v5)
 
-| Métrique | v1 (Session 2) | v3 (Session 3) | v4 (Session 4) |
+| Métrique | v3 (Session 3) | v4 (Session 4) | v5 (Session 5) |
 |----------|----------------|----------------|----------------|
-| BCER (erreur caractères) | 2.687% | 1.137% | **0.989%** |
-| BWER (erreur mots) | 7.488% | 3.420% | **3.000%** |
-| Taille du modèle | 3.1 Mo | 3.1 Mo | **4.0 Mo** |
-| Corpus d'entraînement | 4 913 images | 13 711 images | **22 523 images** |
-| Itérations | 10 000 | 20 000 (best à 11 517) | **19 000** (best à 5 420) |
-| Modèle de base | `fra` (tessdata_best) | `fra` (float version) | **`tmz_latn` v3** (2nd pass) |
+| BCER (erreur caractères) | 1.137% | **0.989%** | 1.271% |
+| BWER (erreur mots) | 3.420% | **3.000%** | N/A |
+| Taille du modèle | 3.1 Mo | 4.0 Mo | **4.19 Mo** |
+| Corpus d'entraînement | 13 711 images | 22 523 images | **23 607 images** (23 059 synth + 548 réelles) |
+| Itérations | 20 000 (best à 11 517) | 19 000 (best à 5 420) | **20 000** (best à 19 100) |
+| Modèle de base | `fra` (float version) | `tmz_latn` v3 | **`tmz_latn` v4** (3rd pass) |
+| Confiance sur scans réels | N/A | 87.6% | **86.5%** (avec labio-vélarisées, 90.2% max) |
 
 ### Emplacements du modèle et de l'entraînement
 
@@ -94,9 +104,15 @@ Le modèle `tmz_latn.traineddata` (v4) est **entraîné et hautement performant*
 
 | Fichier | Rôle |
 |---------|------|
-| `models/tmz_latn.traineddata` | **Le modèle final v4** |
+| `models/tmz_latn.traineddata` | **Le modèle final v5** |
 | `training/scripts/download_corpus.py` | Télécharge les phrases depuis Hugging Face |
 | `training/scripts/enrich_corpus.py` | Enrichit le corpus en multipliant les caractères spéciaux (x3) et rares (x5) |
+| `training/scripts/enrich_labiovelar.py` | Enrichit spécifiquement les occurrences des consonnes labio-vélarisées (ʷ/ᵒ) |
+| `training/scripts/apply_corrections.py` | Applique des corrections ciblées sur le texte |
+| `training/scripts/pdf_to_gt.py` | Extrait les lignes depuis des PDF pour la création de vérité terrain réelle |
+| `training/scripts/filter_french_gt.py` | Filtre les lignes pur français de la vérité terrain réelle |
+| `training/scripts/prepare_v5.sh` | Script de préparation des données pour v5 |
+| `training/scripts/train_v5b.sh` | Script d'entraînement pour v5b |
 | `training/scripts/reinforce_cedilla.py` | Script de renforcement (Session 3) |
 | `training/scripts/reinforce_weak_chars.py` | Script de renforcement (Session 3) |
 | `training/scripts/reinforce_uppercase.py` | Renforcement des majuscules à hauteur de 500 occurrences (Session 4) |
