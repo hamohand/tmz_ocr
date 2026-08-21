@@ -77,6 +77,17 @@ def preprocess_image(image: Image.Image, mode: str = "auto") -> Image.Image:
     return img
 
 
+def split_image_columns(image: Image.Image, num_cols: int = 2, trim_pct: float = 0.02) -> list:
+    """Découpe une image en colonnes verticales pour les documents multi-colonnes."""
+    w, h = image.size
+    trim = int(w * trim_pct)
+    mid = w // num_cols
+    columns = [
+        image.crop((0, 0, mid - trim, h)),
+        image.crop((mid - int(w * 0.01), 0, w, h)),
+    ]
+    return columns
+
 def auto_detect_psm(image: Image.Image, user_psm: int = 3) -> int:
     """
     Détecte automatiquement le meilleur PSM si l'utilisateur n'a pas choisi.
@@ -261,6 +272,7 @@ async def perform_ocr(
     psm: Optional[int] = Form(3),
     confidence: Optional[bool] = Form(False),
     mode: Optional[str] = Form("hybrid"),
+    columns: Optional[int] = Form(1),
 ):
     """
     Reconnaissance de texte Tamazight Latin sur une image.
@@ -270,6 +282,7 @@ async def perform_ocr(
     - **psm**: Page Segmentation Mode de Tesseract (3=auto, 6=bloc, 7=ligne, 13=ligne brute)
     - **confidence**: Si true, retourne aussi les scores de confiance par mot
     - **mode**: `hybrid` (fra+tmz_latn, recommandé), `tmz_only` (tmz_latn seul), `kab_only` (kab Bouaziz seul), `compare` (tmz_latn vs kab côte à côte)
+    - **columns**: Nombre de colonnes (1=normal, 2=dictionnaire/lexique)
     """
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Le fichier doit être une image (PNG, JPG, TIFF, BMP, WebP).")
@@ -278,6 +291,45 @@ async def perform_ocr(
         content = await file.read()
         image = Image.open(io.BytesIO(content))
 
+        # Découpage en colonnes si demandé
+        num_cols = columns or 1
+        if num_cols > 1:
+            col_images = split_image_columns(image, num_cols)
+            all_texts = []
+            all_confs = []
+            for col_img in col_images:
+                col_processed = preprocess_image(col_img, mode=preprocess or "auto")
+                col_psm = auto_detect_psm(col_img, user_psm=psm or 3)
+                col_config = f"--psm {col_psm}"
+                ocr_mode = mode or "hybrid"
+                if ocr_mode == "hybrid":
+                    col_result = hybrid_ocr(col_processed, config=col_config)
+                elif ocr_mode == "kab_only":
+                    col_data = pytesseract.image_to_data(col_processed, lang="kab", config=col_config, output_type=pytesseract.Output.DICT)
+                    col_words = [col_data["text"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip()]
+                    col_confs_list = [col_data["conf"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip() and col_data["conf"][i] > 0]
+                    col_result = {"text": " ".join(col_words), "avg_confidence": sum(col_confs_list) / len(col_confs_list) if col_confs_list else 0}
+                else:  # tmz_only ou fallback
+                    col_data = pytesseract.image_to_data(col_processed, lang="tmz_latn", config=col_config, output_type=pytesseract.Output.DICT)
+                    col_words = [col_data["text"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip()]
+                    col_confs_list = [col_data["conf"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip() and col_data["conf"][i] > 0]
+                    col_result = {"text": " ".join(col_words), "avg_confidence": sum(col_confs_list) / len(col_confs_list) if col_confs_list else 0}
+                all_texts.append(col_result["text"])
+                all_confs.append(col_result.get("avg_confidence", 0))
+
+            combined_text = "\n\n--- Colonne 2 ---\n\n".join(all_texts)
+            avg_conf = sum(all_confs) / len(all_confs) if all_confs else 0
+            return JSONResponse(content={
+                "mode": mode or "hybrid",
+                "columns": num_cols,
+                "text": combined_text,
+                "filename": file.filename,
+                "image_size": {"width": image.size[0], "height": image.size[1]},
+                "preprocess": preprocess or "auto",
+                "avg_confidence": round(avg_conf, 1),
+            })
+
+        # Mode normal (1 colonne)
         # Prétraitement
         processed = preprocess_image(image, mode=preprocess or "auto")
 
