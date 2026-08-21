@@ -77,16 +77,38 @@ def preprocess_image(image: Image.Image, mode: str = "auto") -> Image.Image:
     return img
 
 
-def split_image_columns(image: Image.Image, num_cols: int = 2, trim_pct: float = 0.02) -> list:
-    """Découpe une image en colonnes verticales pour les documents multi-colonnes."""
+def split_image_columns(image: Image.Image, num_cols: int = 2, trim_pct: float = 0.03) -> list:
+    """Découpe une image en colonnes en détectant automatiquement la gouttière."""
+    import numpy as np
+
     w, h = image.size
     trim = int(w * trim_pct)
-    mid = w // num_cols
+
+    # Convertir en niveaux de gris
+    gray = image.convert("L")
+    pixels = np.array(gray)
+
+    # Chercher la gouttière : zone la plus blanche dans le tiers central
+    search_start = int(w * 0.3)
+    search_end = int(w * 0.7)
+
+    # Pour chaque colonne de pixels dans la zone de recherche,
+    # calculer la luminosité moyenne (blanc = 255)
+    col_brightness = []
+    for x in range(search_start, search_end):
+        col_brightness.append(pixels[:, x].mean())
+
+    # La gouttière est la position la plus claire
+    best_offset = max(range(len(col_brightness)), key=lambda i: col_brightness[i])
+    gutter = search_start + best_offset
+
+    # Découper avec une marge de trim de chaque côté de la gouttière
     columns = [
-        image.crop((0, 0, mid - trim, h)),
-        image.crop((mid - int(w * 0.01), 0, w, h)),
+        image.crop((0, 0, gutter - trim, h)),
+        image.crop((gutter + trim, 0, w, h)),
     ]
     return columns
+
 
 def auto_detect_psm(image: Image.Image, user_psm: int = 3) -> int:
     """
