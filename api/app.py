@@ -78,31 +78,41 @@ def preprocess_image(image: Image.Image, mode: str = "auto") -> Image.Image:
 
 
 def split_image_columns(image: Image.Image, num_cols: int = 2, trim_pct: float = 0.03) -> list:
-    """Découpe une image en colonnes en détectant automatiquement la gouttière."""
+    """Découpe une image en colonnes en détectant automatiquement la gouttière.
+    Rogne les marges (haut, bas, côtés) pour ne garder que le texte."""
     import numpy as np
 
     w, h = image.size
-    trim = int(w * trim_pct)
 
-    # Convertir en niveaux de gris
+    # 1. Rogner les marges extérieures (en-tête, pied de page, marges latérales)
+    margin_top = int(h * 0.05)
+    margin_bottom = int(h * 0.05)
+    margin_left = int(w * 0.03)
+    margin_right = int(w * 0.03)
+    image = image.crop((margin_left, margin_top, w - margin_right, h - margin_bottom))
+    w, h = image.size
+
+    # 2. Convertir en niveaux de gris
     gray = image.convert("L")
     pixels = np.array(gray)
 
-    # Chercher la gouttière : zone la plus blanche dans le tiers central
-    search_start = int(w * 0.3)
-    search_end = int(w * 0.7)
+    # 3. Chercher la gouttière : bande la plus blanche dans le tiers central
+    search_start = int(w * 0.35)
+    search_end = int(w * 0.65)
 
-    # Pour chaque colonne de pixels dans la zone de recherche,
-    # calculer la luminosité moyenne (blanc = 255)
-    col_brightness = []
-    for x in range(search_start, search_end):
-        col_brightness.append(pixels[:, x].mean())
+    # Fenêtre glissante de 7 pixels pour robustesse
+    window = 7
+    trim = int(w * trim_pct)
+    best_score = -1
+    gutter = w // 2
 
-    # La gouttière est la position la plus claire
-    best_offset = max(range(len(col_brightness)), key=lambda i: col_brightness[i])
-    gutter = search_start + best_offset
+    for x in range(search_start, search_end - window):
+        score = pixels[:, x:x+window].mean()
+        if score > best_score:
+            best_score = score
+            gutter = x + window // 2
 
-    # Découper avec une marge de trim de chaque côté de la gouttière
+    # 4. Découper les deux colonnes
     columns = [
         image.crop((0, 0, gutter - trim, h)),
         image.crop((gutter + trim, 0, w, h)),
