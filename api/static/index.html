@@ -756,7 +756,7 @@ const fileInput = $('fileInput');
 
 uploadZone.addEventListener('drop', e => {
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) handleFile(file);
+    if (file && (file.type.startsWith('image/') || file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) handleFile(file);
 });
 
 fileInput.addEventListener('change', () => {
@@ -914,16 +914,16 @@ $('btnOcr').addEventListener('click', async () => {
 
 // ── Actions ─────────────────────────
 function copyText() {
-    const text = lastResult?.text || '';
+    const text = lastResult?.combined_text || lastResult?.text || '';
     navigator.clipboard.writeText(text).then(() => showToast('✅ Texte copié !'));
 }
 
 function downloadText() {
-    const text = lastResult?.text || '';
+    const text = lastResult?.combined_text || lastResult?.text || '';
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = (lastResult?.filename || 'ocr') + '.txt';
+    a.download = (lastResult?.filename || 'ocr').replace(/\.pdf$/i, '') + '.txt';
     a.click();
     showToast('💾 Fichier téléchargé');
 }
