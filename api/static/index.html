@@ -590,9 +590,9 @@
     <!-- Upload -->
     <div class="upload-zone" id="uploadZone">
         <div class="icon">📄</div>
-        <h3>Glissez une image ici</h3>
-        <p>ou cliquez pour sélectionner — PNG, JPG, TIFF, BMP, WebP</p>
-        <input type="file" id="fileInput" accept="image/*">
+        <h3>Glissez une image ou un PDF ici</h3>
+        <p>ou cliquez pour sélectionner — PNG, JPG, TIFF, BMP, WebP, <strong>PDF</strong></p>
+        <input type="file" id="fileInput" accept="image/*,.pdf,application/pdf">
     </div>
 
     <!-- Preview -->
@@ -640,6 +640,21 @@
             </select>
         </div>
     </div>
+
+    <!-- Options PDF (apparaissent quand un PDF est sélectionné) -->
+    <div class="options" id="pdfOptions" style="display:none;margin-top:0.5rem">
+        <div class="option-group">
+            <label>Pages</label>
+            <input type="text" id="pdfPages" value="all" placeholder="all, 1-5, 3,7,12" style="padding:0.4rem;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)">
+        </div>
+        <div class="option-group">
+            <label>DPI</label>
+            <select id="pdfDpi">
+                <option value="150">150 (rapide)</option>
+                <option value="300" selected>300 (recommandé)</option>
+                <option value="600">600 (haute qualité)</option>
+            </select>
+        </div>
     </div>
 
     <!-- Button -->
@@ -754,13 +769,36 @@ function handleFile(file) {
     $('errorMsg').classList.remove('visible');
     $('result').classList.remove('visible');
 
+    const isPdf = file.name.toLowerCase().endsWith('.pdf');
+    $('pdfOptions').style.display = isPdf ? 'grid' : 'none';
+
     // Preview
-    const reader = new FileReader();
-    reader.onload = e => {
-        $('previewImg').src = e.target.result;
+    if (isPdf) {
+        $('previewImg').src = '';
+        $('previewImg').alt = '📄 ' + file.name;
         $('preview').classList.add('visible');
-    };
-    reader.readAsDataURL(file);
+        $('previewImg').style.display = 'none';
+        // Afficher un placeholder pour le PDF
+        let pdfPlaceholder = document.getElementById('pdfPlaceholder');
+        if (!pdfPlaceholder) {
+            pdfPlaceholder = document.createElement('div');
+            pdfPlaceholder.id = 'pdfPlaceholder';
+            pdfPlaceholder.style.cssText = 'display:flex;align-items:center;justify-content:center;height:200px;font-size:3rem;flex-direction:column;gap:0.5rem;color:var(--text-muted)';
+            $('preview').appendChild(pdfPlaceholder);
+        }
+        pdfPlaceholder.innerHTML = '📄<span style="font-size:1rem">' + file.name + '</span>';
+        pdfPlaceholder.style.display = 'flex';
+    } else {
+        const reader = new FileReader();
+        reader.onload = e => {
+            $('previewImg').src = e.target.result;
+            $('previewImg').style.display = '';
+            $('preview').classList.add('visible');
+        };
+        reader.readAsDataURL(file);
+        let pdfPlaceholder = document.getElementById('pdfPlaceholder');
+        if (pdfPlaceholder) pdfPlaceholder.style.display = 'none';
+    }
 
     $('fileName').textContent = file.name;
     $('fileSize').textContent = (file.size / 1024).toFixed(1) + ' Ko';
@@ -776,21 +814,43 @@ $('btnOcr').addEventListener('click', async () => {
     $('errorMsg').classList.remove('visible');
     $('result').classList.remove('visible');
 
+    const isPdf = selectedFile.name.toLowerCase().endsWith('.pdf');
     const formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('preprocess', $('preprocess').value);
     formData.append('psm', $('psm').value);
-    formData.append('confidence', 'true');
     formData.append('mode', $('ocrMode').value);
     formData.append('columns', $('columns').value);
 
+    if (isPdf) {
+        formData.append('pages', $('pdfPages').value || 'all');
+        formData.append('dpi', $('pdfDpi').value || '300');
+    } else {
+        formData.append('confidence', 'true');
+    }
+
+    const endpoint = isPdf ? '/api/ocr-pdf' : '/api/ocr';
+
     try {
-        const res = await fetch('/api/ocr', { method: 'POST', body: formData });
+        const res = await fetch(endpoint, { method: 'POST', body: formData });
         const data = await res.json();
 
         if (!res.ok) throw new Error(data.detail || 'Erreur OCR');
 
         lastResult = data;
+
+        // Mode PDF : afficher le texte combiné avec infos pages
+        if (isPdf && data.combined_text) {
+            const text = data.combined_text;
+            $('resultText').textContent = text;
+            const pagesInfo = data.pages_processed + '/' + data.total_pages + ' pages';
+            const colsInfo = data.columns > 1 ? ' • ' + data.columns + ' col.' : '';
+            $('confidenceBadge').textContent = data.avg_confidence + '% • ' + pagesInfo + colsInfo + ' • ' + data.dpi + ' DPI';
+            $('result').classList.add('visible');
+            btn.disabled = false;
+            btn.classList.remove('loading');
+            return;
+        }
 
         // Mode comparaison : affichage côte à côte
         if (data.mode === 'compare') {

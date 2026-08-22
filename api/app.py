@@ -22,7 +22,13 @@ import json
 import tempfile
 import difflib
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
+
+try:
+    from pdf2image import convert_from_bytes
+    HAS_PDF2IMAGE = True
+except ImportError:
+    HAS_PDF2IMAGE = False
 
 # ── Configuration ──────────────────────────────────────────────
 MODELS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models"))
@@ -490,6 +496,148 @@ async def perform_ocr(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
+
+
+def ocr_single_image(image: Image.Image, preprocess_mode: str, psm: int, mode: str, num_cols: int) -> dict:
+    """Traite une seule image avec OCR (utilisé par les endpoints image et PDF)."""
+    if num_cols > 1:
+        col_images = split_image_columns(image, num_cols)
+        all_texts = []
+        all_confs = []
+        for col_img in col_images:
+            col_processed = preprocess_image(col_img, mode=preprocess_mode)
+            col_psm = auto_detect_psm(col_img, user_psm=psm)
+            col_config = f"--psm {col_psm}"
+            if mode == "hybrid":
+                col_result = hybrid_ocr(col_processed, config=col_config)
+            elif mode == "kab_only":
+                col_data = pytesseract.image_to_data(col_processed, lang="kab", config=col_config, output_type=pytesseract.Output.DICT)
+                col_words = [col_data["text"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip()]
+                col_confs_list = [col_data["conf"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip() and col_data["conf"][i] > 0]
+                col_result = {"text": " ".join(col_words), "avg_confidence": sum(col_confs_list) / len(col_confs_list) if col_confs_list else 0}
+            else:
+                lang = "tmz_latn"
+                col_data = pytesseract.image_to_data(col_processed, lang=lang, config=col_config, output_type=pytesseract.Output.DICT)
+                col_words = [col_data["text"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip()]
+                col_confs_list = [col_data["conf"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip() and col_data["conf"][i] > 0]
+                col_result = {"text": " ".join(col_words), "avg_confidence": sum(col_confs_list) / len(col_confs_list) if col_confs_list else 0}
+            all_texts.append(col_result["text"])
+            all_confs.append(col_result.get("avg_confidence", 0))
+        text = "\n\n--- Colonne 2 ---\n\n".join(all_texts)
+        avg_conf = sum(all_confs) / len(all_confs) if all_confs else 0
+        return {"text": text, "avg_confidence": round(avg_conf, 1)}
+    else:
+        processed = preprocess_image(image, mode=preprocess_mode)
+        effective_psm = auto_detect_psm(image, user_psm=psm)
+        config = f"--psm {effective_psm}"
+        if mode == "hybrid":
+            result = hybrid_ocr(processed, config=config)
+            return {"text": result["text"], "avg_confidence": result["avg_confidence"]}
+        else:
+            lang = "kab" if mode == "kab_only" else "tmz_latn"
+            data = pytesseract.image_to_data(processed, lang=lang, config=config, output_type=pytesseract.Output.DICT)
+            words = [data["text"][i] for i in range(len(data["text"])) if data["text"][i].strip()]
+            confs = [data["conf"][i] for i in range(len(data["text"])) if data["text"][i].strip() and data["conf"][i] > 0]
+            text = " ".join(words)
+            avg_conf = sum(confs) / len(confs) if confs else 0
+            return {"text": text, "avg_confidence": round(avg_conf, 1)}
+
+
+@app.post("/api/ocr-pdf")
+async def perform_pdf_ocr(
+    file: UploadFile = File(...),
+    preprocess: Optional[str] = Form("auto"),
+    psm: Optional[int] = Form(3),
+    mode: Optional[str] = Form("hybrid"),
+    columns: Optional[int] = Form(1),
+    pages: Optional[str] = Form("all"),
+    dpi: Optional[int] = Form(300),
+):
+    """
+    OCR sur un fichier PDF — convertit chaque page en image puis lance l'OCR.
+
+    - **file**: Fichier PDF
+    - **preprocess**: Mode de prétraitement (`auto`, `raw`, `binarize`)
+    - **psm**: Page Segmentation Mode (3=auto)
+    - **mode**: `hybrid`, `tmz_only`, `kab_only`
+    - **columns**: Nombre de colonnes (1=normal, 2=dictionnaire)
+    - **pages**: Pages à traiter (`all`, `1-5`, `3,7,12`, `5`)
+    - **dpi**: Résolution de rendu (150-600, défaut 300)
+    """
+    if not HAS_PDF2IMAGE:
+        raise HTTPException(status_code=500, detail="pdf2image non installé. Installez avec: pip install pdf2image")
+
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Le fichier doit être un PDF.")
+
+    try:
+        content = await file.read()
+        render_dpi = min(max(dpi or 300, 150), 600)
+
+        # Convertir le PDF en images
+        images = convert_from_bytes(content, dpi=render_dpi)
+        total_pages = len(images)
+
+        # Parser la sélection de pages
+        page_indices = []
+        pages_str = pages or "all"
+        if pages_str == "all":
+            page_indices = list(range(total_pages))
+        else:
+            for part in pages_str.split(","):
+                part = part.strip()
+                if "-" in part:
+                    start, end = part.split("-", 1)
+                    start = max(1, int(start))
+                    end = min(total_pages, int(end))
+                    page_indices.extend(range(start - 1, end))
+                else:
+                    idx = int(part) - 1
+                    if 0 <= idx < total_pages:
+                        page_indices.append(idx)
+
+        if not page_indices:
+            raise HTTPException(status_code=400, detail=f"Aucune page valide. Le PDF contient {total_pages} pages.")
+
+        # Traiter chaque page
+        ocr_mode = mode or "hybrid"
+        num_cols = columns or 1
+        preprocess_mode = preprocess or "auto"
+        effective_psm = psm or 3
+
+        page_results = []
+        all_texts = []
+
+        for page_idx in page_indices:
+            page_image = images[page_idx]
+            result = ocr_single_image(page_image, preprocess_mode, effective_psm, ocr_mode, num_cols)
+            page_results.append({
+                "page": page_idx + 1,
+                "text": result["text"],
+                "avg_confidence": result["avg_confidence"],
+                "image_size": {"width": page_image.size[0], "height": page_image.size[1]},
+            })
+            all_texts.append(f"--- Page {page_idx + 1} ---\n{result['text']}")
+
+        # Statistiques globales
+        avg_conf_global = sum(p["avg_confidence"] for p in page_results) / len(page_results) if page_results else 0
+
+        return JSONResponse(content={
+            "mode": ocr_mode,
+            "columns": num_cols,
+            "dpi": render_dpi,
+            "filename": file.filename,
+            "total_pages": total_pages,
+            "pages_processed": len(page_results),
+            "avg_confidence": round(avg_conf_global, 1),
+            "combined_text": "\n\n".join(all_texts),
+            "pages": page_results,
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur OCR PDF: {str(e)}")
 
 
 @app.post("/api/ocr/batch")
