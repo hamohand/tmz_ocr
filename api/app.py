@@ -159,82 +159,51 @@ def has_tamazight_chars(word: str) -> bool:
 
 def hybrid_ocr(image, config: str = "--psm 3") -> dict:
     """
-    OCR hybride : combine les résultats de 'fra' et 'tmz_latn'.
+    OCR hybride : utilise Tesseract en mode multi-langue (fra+tmz_latn).
 
-    Stratégie :
-    - Lancer les 2 modèles sur la même image
-    - Pour chaque mot, comparer les résultats :
-      1. Si tmz_latn détecte un caractère spécial → garder tmz_latn
-      2. Sinon, garder le mot avec la meilleure confiance
-    - Reconstruire le texte final
+    Tesseract combine nativement les deux modèles pour choisir la meilleure
+    reconnaissance par mot, sans dédoublement.
     """
-    # OCR avec les deux modèles
-    data_tmz = pytesseract.image_to_data(
-        image, lang="tmz_latn", config=config, output_type=pytesseract.Output.DICT
-    )
+    # Essayer le mode multi-langue natif
     try:
-        data_fra = pytesseract.image_to_data(
-            image, lang="fra", config=config, output_type=pytesseract.Output.DICT
+        data = pytesseract.image_to_data(
+            image, lang="fra+tmz_latn", config=config, output_type=pytesseract.Output.DICT
         )
-        has_fra = True
     except pytesseract.TesseractError:
-        # Si fra n'est pas disponible, utiliser uniquement tmz_latn
-        data_fra = None
-        has_fra = False
+        # Fallback sur tmz_latn seul si fra indisponible
+        data = pytesseract.image_to_data(
+            image, lang="tmz_latn", config=config, output_type=pytesseract.Output.DICT
+        )
 
-    # Construire les résultats mot par mot
+    # Construire les résultats
     words_result = []
-    lines = {}  # {(block, par, line): [words]}
+    lines = {}
 
-    for i, word_tmz in enumerate(data_tmz["text"]):
-        if not word_tmz.strip():
+    for i in range(len(data["text"])):
+        word = data["text"][i].strip()
+        if not word:
             continue
 
-        conf_tmz = data_tmz["conf"][i]
-        block = data_tmz["block_num"][i]
-        par = data_tmz["par_num"][i]
-        line_num = data_tmz["line_num"][i]
+        conf = data["conf"][i]
+        block = data["block_num"][i]
+        par = data["par_num"][i]
+        line_num = data["line_num"][i]
 
-        # Chercher le mot correspondant dans fra (même position approximative)
-        chosen_word = word_tmz
-        chosen_conf = conf_tmz
-        chosen_source = "tmz_latn"
-
-        if has_fra and data_fra:
-            # Trouver le mot fra le plus proche (même index si possible)
-            word_fra = ""
-            conf_fra = -1
-            if i < len(data_fra["text"]):
-                word_fra = data_fra["text"][i]
-                conf_fra = data_fra["conf"][i]
-
-            if word_fra.strip():
-                if has_tamazight_chars(word_tmz):
-                    # tmz_latn a détecté un caractère spécial → le garder
-                    chosen_word = word_tmz
-                    chosen_conf = conf_tmz
-                    chosen_source = "tmz_latn*"  # * = choix forcé
-                elif conf_fra > conf_tmz and conf_fra > 0:
-                    # fra a une meilleure confiance → le prendre
-                    chosen_word = word_fra
-                    chosen_conf = conf_fra
-                    chosen_source = "fra"
+        source = "tmz_latn*" if has_tamazight_chars(word) else "hybrid"
 
         key = (block, par, line_num)
         if key not in lines:
             lines[key] = []
-        lines[key].append(chosen_word)
+        lines[key].append(word)
 
         words_result.append({
-            "text": chosen_word,
-            "confidence": chosen_conf,
-            "source": chosen_source,
-            "tmz": word_tmz,
-            "fra": data_fra["text"][i].strip() if (has_fra and data_fra and i < len(data_fra["text"])) else "",
-            "x": data_tmz["left"][i],
-            "y": data_tmz["top"][i],
-            "w": data_tmz["width"][i],
-            "h": data_tmz["height"][i],
+            "text": word,
+            "confidence": conf,
+            "source": source,
+            "x": data["left"][i],
+            "y": data["top"][i],
+            "w": data["width"][i],
+            "h": data["height"][i],
         })
 
     # Reconstruire le texte ligne par ligne
@@ -243,15 +212,9 @@ def hybrid_ocr(image, config: str = "--psm 3") -> dict:
         text_lines.append(" ".join(lines[key]))
     final_text = "\n".join(text_lines)
 
-    # Statistiques
-    sources = {"tmz_latn": 0, "tmz_latn*": 0, "fra": 0}
-    for w in words_result:
-        sources[w["source"]] = sources.get(w["source"], 0) + 1
-
     return {
         "text": final_text,
         "words": words_result,
-        "sources": sources,
         "avg_confidence": round(sum(w["confidence"] for w in words_result) / len(words_result), 1) if words_result else 0,
     }
 
