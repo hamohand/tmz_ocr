@@ -626,8 +626,8 @@
             <div class="option-group">
             <label>Mode OCR</label>
             <select id="ocrMode">
-                <option value="tmz_only">tmz_latn seul (recommandé)</option>
-                <option value="hybrid">Hybride fra+tmz (texte mixte fr/tmz)</option>
+                <option value="hybrid">Hybride fra+tmz (recommandé)</option>
+                <option value="tmz_only">tmz_latn seul</option>
                 <option value="kab_only">kab Bouaziz seul</option>
                 <option value="compare">⚔️ Comparer tmz_latn vs kab</option>
             </select>
@@ -650,8 +650,9 @@
         <div class="option-group">
             <label>DPI</label>
             <select id="pdfDpi">
-                <option value="150" selected>150 (recommandé)</option>
-                <option value="300">300 (texte très petit)</option>
+                <option value="0" selected>Auto (150+300, meilleur ⵣ)</option>
+                <option value="150">150 fixe</option>
+                <option value="300">300 fixe</option>
             </select>
         </div>
     </div>
@@ -861,7 +862,13 @@ $('btnOcr').addEventListener('click', async () => {
                     .join(', ');
                 compInfo = `\n📊 PDF: ${pc.pdf_special.total_chars} car. : ${pdfDetail}\n🎯 Précision ⵣ : ${pc.accuracy}%` + (diffs ? ` — Écarts: ${diffs}` : ' — Aucun écart ✅');
             }
-            $('confidenceBadge').textContent = data.avg_confidence + '%' + specialInfo + ' • ' + pagesInfo + colsInfo + ' • ' + data.dpi + ' DPI';
+            // DPI auto info
+            let dpiInfo = data.dpi + ' DPI';
+            if (data.dpi_auto) {
+                const da = data.dpi_auto;
+                dpiInfo = `${da.chosen} DPI ✓ (vs ${da.other_dpi}: ⵣ ${da.chosen_accuracy}% vs ${da.other_accuracy}%)`;
+            }
+            $('confidenceBadge').textContent = data.avg_confidence + '%' + specialInfo + ' • ' + pagesInfo + colsInfo + ' • ' + dpiInfo;
             if (compInfo) {
                 $('confidenceBadge').textContent += compInfo;
             }

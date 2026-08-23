@@ -393,7 +393,7 @@ async def perform_ocr(
     preprocess: Optional[str] = Form("auto"),
     psm: Optional[int] = Form(3),
     confidence: Optional[bool] = Form(False),
-    mode: Optional[str] = Form("tmz_only"),
+    mode: Optional[str] = Form("hybrid"),
     columns: Optional[int] = Form(1),
 ):
     """
@@ -649,10 +649,10 @@ async def perform_pdf_ocr(
     file: UploadFile = File(...),
     preprocess: Optional[str] = Form("auto"),
     psm: Optional[int] = Form(3),
-    mode: Optional[str] = Form("tmz_only"),
+    mode: Optional[str] = Form("hybrid"),
     columns: Optional[int] = Form(1),
     pages: Optional[str] = Form("all"),
-    dpi: Optional[int] = Form(150),
+    dpi: Optional[int] = Form(0),  # 0 = auto (essaie 150 et 300)
 ):
     """
     OCR sur un fichier PDF — convertit chaque page en image puis lance l'OCR.
@@ -663,7 +663,7 @@ async def perform_pdf_ocr(
     - **mode**: `hybrid`, `tmz_only`, `kab_only`
     - **columns**: Nombre de colonnes (1=normal, 2=dictionnaire)
     - **pages**: Pages à traiter (`all`, `1-5`, `3,7,12`, `5`)
-    - **dpi**: Résolution de rendu (150-600, défaut 300)
+    - **dpi**: Résolution (0=auto 150+300, ou 150/300 fixe)
     """
     if not HAS_PDF2IMAGE:
         raise HTTPException(status_code=500, detail="pdf2image non installé. Installez avec: pip install pdf2image")
@@ -673,124 +673,199 @@ async def perform_pdf_ocr(
 
     try:
         content = await file.read()
-        render_dpi = min(max(dpi or 300, 150), 600)
 
-        # Convertir le PDF en images
-        images = convert_from_bytes(content, dpi=render_dpi)
-        total_pages = len(images)
-
-        # Parser la sélection de pages
-        page_indices = []
+        # Parser la sélection de pages (on en a besoin avant de convertir)
         pages_str = pages or "all"
-        if pages_str == "all":
-            page_indices = list(range(total_pages))
-        else:
-            for part in pages_str.split(","):
-                part = part.strip()
-                if "-" in part:
-                    start, end = part.split("-", 1)
-                    start = max(1, int(start))
-                    end = min(total_pages, int(end))
-                    page_indices.extend(range(start - 1, end))
-                else:
-                    idx = int(part) - 1
-                    if 0 <= idx < total_pages:
-                        page_indices.append(idx)
 
-        if not page_indices:
-            raise HTTPException(status_code=400, detail=f"Aucune page valide. Le PDF contient {total_pages} pages.")
-
-        # Traiter chaque page
-        ocr_mode = mode or "hybrid"
-        num_cols = columns or 1
-        preprocess_mode = preprocess or "auto"
-        effective_psm = psm or 3
-
-        page_results = []
-        all_texts = []
-
-        for page_idx in page_indices:
-            page_image = images[page_idx]
-            result = ocr_single_image(page_image, preprocess_mode, effective_psm, ocr_mode, num_cols)
-            page_results.append({
-                "page": page_idx + 1,
-                "text": result["text"],
-                "avg_confidence": result["avg_confidence"],
-                "special_confidence": result.get("special_confidence", 0),
-                "special_count": result.get("special_count", 0),
-                "image_size": {"width": page_image.size[0], "height": page_image.size[1]},
-            })
-            all_texts.append(f"--- Page {page_idx + 1} ---\n{result['text']}")
-
-        # Statistiques globales
-        avg_conf_global = sum(p["avg_confidence"] for p in page_results) / len(page_results) if page_results else 0
-        total_special = sum(p["special_count"] for p in page_results)
-        if total_special > 0:
-            special_conf_global = sum(p["special_confidence"] * p["special_count"] for p in page_results) / total_special
-        else:
-            special_conf_global = 0
-
-        combined = "\n\n".join(all_texts)
-        special_global = count_special_chars(combined)
-
-        # Extraire le texte intégré du PDF (si disponible) pour comparaison
-        pdf_comparison = None
+        # Extraire le texte PDF intégré une seule fois
+        pdf_special = None
         if HAS_FITZ:
             try:
                 doc = fitz.open(stream=content, filetype="pdf")
+                total_pages_fitz = len(doc)
+                # Parser les pages pour fitz
+                if pages_str == "all":
+                    fitz_indices = list(range(total_pages_fitz))
+                else:
+                    fitz_indices = []
+                    for part in pages_str.split(","):
+                        part = part.strip()
+                        if "-" in part:
+                            start, end = part.split("-", 1)
+                            start = max(1, int(start))
+                            end = min(total_pages_fitz, int(end))
+                            fitz_indices.extend(range(start - 1, end))
+                        else:
+                            idx = int(part) - 1
+                            if 0 <= idx < total_pages_fitz:
+                                fitz_indices.append(idx)
+
                 pdf_texts = []
-                for page_idx in page_indices:
-                    page = doc[page_idx]
-                    pdf_texts.append(normalize_tmz(page.get_text()))
+                for idx in fitz_indices:
+                    pdf_texts.append(normalize_tmz(doc[idx].get_text()))
                 pdf_text_combined = "\n".join(pdf_texts)
                 doc.close()
 
                 if pdf_text_combined.strip():
                     pdf_special = count_special_chars(pdf_text_combined)
-                    ocr_detail = special_global["detail"]
-                    pdf_detail = pdf_special["detail"]
-
-                    # Comparer caractère par caractère
-                    all_chars = set(list(ocr_detail.keys()) + list(pdf_detail.keys()))
-                    comparison = {}
-                    total_correct = 0
-                    total_expected = 0
-                    for c in sorted(all_chars):
-                        expected = pdf_detail.get(c, 0)
-                        found = ocr_detail.get(c, 0)
-                        comparison[c] = {"expected": expected, "found": found, "diff": found - expected}
-                        total_correct += min(found, expected)
-                        total_expected += expected
-
-                    accuracy = round(total_correct / total_expected * 100, 1) if total_expected > 0 else 0
-
-                    pdf_comparison = {
-                        "pdf_special": pdf_special,
-                        "accuracy": accuracy,
-                        "comparison": comparison,
-                        "has_embedded_text": True,
-                    }
-                else:
-                    pdf_comparison = {"has_embedded_text": False}
             except Exception:
-                pdf_comparison = {"has_embedded_text": False}
+                pdf_special = None
 
+        # Fonction interne : OCR à un DPI donné
+        def _ocr_at_dpi(render_dpi: int) -> dict:
+            images = convert_from_bytes(content, dpi=render_dpi)
+            total_pages = len(images)
+
+            page_indices = []
+            if pages_str == "all":
+                page_indices = list(range(total_pages))
+            else:
+                for part in pages_str.split(","):
+                    part = part.strip()
+                    if "-" in part:
+                        start, end = part.split("-", 1)
+                        start = max(1, int(start))
+                        end = min(total_pages, int(end))
+                        page_indices.extend(range(start - 1, end))
+                    else:
+                        idx = int(part) - 1
+                        if 0 <= idx < total_pages:
+                            page_indices.append(idx)
+
+            if not page_indices:
+                return None
+
+            ocr_mode = mode or "hybrid"
+            num_cols = columns or 1
+            preprocess_mode = preprocess or "auto"
+            effective_psm = psm or 3
+
+            page_results = []
+            all_page_texts = []
+
+            for page_idx in page_indices:
+                page_image = images[page_idx]
+                result = ocr_single_image(page_image, preprocess_mode, effective_psm, ocr_mode, num_cols)
+                page_results.append({
+                    "page": page_idx + 1,
+                    "text": result["text"],
+                    "avg_confidence": result["avg_confidence"],
+                    "special_confidence": result.get("special_confidence", 0),
+                    "special_count": result.get("special_count", 0),
+                    "image_size": {"width": page_image.size[0], "height": page_image.size[1]},
+                })
+                all_page_texts.append(f"--- Page {page_idx + 1} ---\n{result['text']}")
+
+            avg_conf = sum(p["avg_confidence"] for p in page_results) / len(page_results) if page_results else 0
+            total_sp = sum(p["special_count"] for p in page_results)
+            if total_sp > 0:
+                sp_conf = sum(p["special_confidence"] * p["special_count"] for p in page_results) / total_sp
+            else:
+                sp_conf = 0
+
+            combined = "\n\n".join(all_page_texts)
+            special_global = count_special_chars(combined)
+
+            # Comparaison avec le texte PDF
+            pdf_comparison = None
+            accuracy = 0
+            if pdf_special and pdf_special["total_chars"] > 0:
+                ocr_detail = special_global["detail"]
+                pdf_detail = pdf_special["detail"]
+                all_chars = set(list(ocr_detail.keys()) + list(pdf_detail.keys()))
+                comparison = {}
+                total_correct = 0
+                total_expected = 0
+                for c in sorted(all_chars):
+                    expected = pdf_detail.get(c, 0)
+                    found = ocr_detail.get(c, 0)
+                    comparison[c] = {"expected": expected, "found": found, "diff": found - expected}
+                    total_correct += min(found, expected)
+                    total_expected += expected
+                accuracy = round(total_correct / total_expected * 100, 1) if total_expected > 0 else 0
+                pdf_comparison = {
+                    "pdf_special": pdf_special,
+                    "accuracy": accuracy,
+                    "comparison": comparison,
+                    "has_embedded_text": True,
+                }
+            elif pdf_special is None:
+                pdf_comparison = {"has_embedded_text": False}
+            else:
+                pdf_comparison = {"has_embedded_text": True, "accuracy": 0, "pdf_special": pdf_special}
+
+            return {
+                "dpi": render_dpi,
+                "total_pages": total_pages,
+                "page_results": page_results,
+                "combined": combined,
+                "avg_conf": avg_conf,
+                "sp_conf": sp_conf,
+                "total_sp": total_sp,
+                "special_global": special_global,
+                "pdf_comparison": pdf_comparison,
+                "accuracy": accuracy,
+            }
+
+        # DPI auto : essayer 150 et 300, garder le meilleur
+        requested_dpi = dpi or 0
+        if requested_dpi == 0:
+            result_150 = _ocr_at_dpi(150)
+            result_300 = _ocr_at_dpi(300)
+
+            if result_150 is None:
+                raise HTTPException(status_code=400, detail="Aucune page valide.")
+
+            # Choisir le meilleur par précision ⵣ, sinon par nombre de car. spéciaux
+            acc_150 = result_150["accuracy"]
+            acc_300 = result_300["accuracy"] if result_300 else 0
+
+            if acc_150 > 0 or acc_300 > 0:
+                # Comparaison PDF disponible → prendre la meilleure précision ⵣ
+                best = result_150 if acc_150 >= acc_300 else result_300
+            else:
+                # Pas de texte PDF → prendre celui avec le plus de car. spéciaux
+                sp_150 = result_150["special_global"]["total_chars"]
+                sp_300 = result_300["special_global"]["total_chars"] if result_300 else 0
+                best = result_150 if sp_150 >= sp_300 else result_300
+
+            chosen_dpi = best["dpi"]
+            other_dpi = 300 if chosen_dpi == 150 else 150
+            other = result_300 if chosen_dpi == 150 else result_150
+        else:
+            render_dpi = min(max(requested_dpi, 150), 600)
+            best = _ocr_at_dpi(render_dpi)
+            if best is None:
+                raise HTTPException(status_code=400, detail="Aucune page valide.")
+            chosen_dpi = render_dpi
+            other = None
+
+        # Construire la réponse
         response = {
-            "mode": ocr_mode,
-            "columns": num_cols,
-            "dpi": render_dpi,
+            "mode": mode or "hybrid",
+            "columns": columns or 1,
+            "dpi": chosen_dpi,
             "filename": file.filename,
-            "total_pages": total_pages,
-            "pages_processed": len(page_results),
-            "avg_confidence": round(avg_conf_global, 1),
-            "special_confidence": round(special_conf_global, 1),
-            "special_count": total_special,
-            "special_detail": special_global,
-            "combined_text": combined,
-            "pages": page_results,
+            "total_pages": best["total_pages"],
+            "pages_processed": len(best["page_results"]),
+            "avg_confidence": round(best["avg_conf"], 1),
+            "special_confidence": round(best["sp_conf"], 1),
+            "special_count": best["total_sp"],
+            "special_detail": best["special_global"],
+            "combined_text": best["combined"],
+            "pages": best["page_results"],
         }
-        if pdf_comparison:
-            response["pdf_comparison"] = pdf_comparison
+        if best["pdf_comparison"]:
+            response["pdf_comparison"] = best["pdf_comparison"]
+        if other:
+            response["dpi_auto"] = {
+                "chosen": chosen_dpi,
+                "other_dpi": other["dpi"],
+                "chosen_accuracy": best["accuracy"],
+                "other_accuracy": other["accuracy"],
+                "chosen_special_chars": best["special_global"]["total_chars"],
+                "other_special_chars": other["special_global"]["total_chars"],
+            }
         return JSONResponse(content=response)
 
     except HTTPException:
