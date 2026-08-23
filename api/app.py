@@ -40,7 +40,7 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app = FastAPI(
     title="ⵣ Tamazight OCR API",
     description="API de reconnaissance optique de caractères pour le Tamazight Latin (Kabyle). Modèles : tmz_latn + kab (Bouaziz).",
-    version="5.0.0",
+    version="6.0.0",
 )
 
 app.add_middleware(
@@ -551,7 +551,7 @@ async def perform_pdf_ocr(
     mode: Optional[str] = Form("hybrid"),
     columns: Optional[int] = Form(1),
     pages: Optional[str] = Form("all"),
-    dpi: Optional[int] = Form(300),
+    dpi: Optional[int] = Form(150),
 ):
     """
     OCR sur un fichier PDF — convertit chaque page en image puis lance l'OCR.
