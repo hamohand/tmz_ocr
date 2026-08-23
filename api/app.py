@@ -157,11 +157,22 @@ def auto_detect_psm(image: Image.Image, user_psm: int = 3) -> int:
 
 # ── Caractères spécifiques Tamazight ───────────────────────────
 
-# Table de normalisation : caractères visuellement identiques → forme standard tamazight
+# Table de normalisation :
+# 1. ε epsilon grec → ɛ latin (pas de ε dans l'alphabet tamazight)
+# 2. Majuscules → minuscules (pas de notion maj/min pour les caractères spéciaux)
 TMZ_NORMALIZE = {
     "\u03B5": "\u025B",  # ε epsilon grec → ɛ latin open e
-    "\u0190": "\u0190",  # Ɛ (déjà correct, Latin capital open E)
-    "\u0194": "\u0194",  # Ɣ (déjà correct, Latin capital Gamma)
+    "\u1E0C": "\u1E0D",  # Ḍ → ḍ
+    "\u1E6C": "\u1E6D",  # Ṭ → ṭ
+    "\u1E62": "\u1E63",  # Ṣ → ṣ
+    "\u1E92": "\u1E93",  # Ẓ → ẓ
+    "\u1E5A": "\u1E5B",  # Ṛ → ṛ
+    "\u1E24": "\u1E25",  # Ḥ → ḥ
+    "\u0190": "\u025B",  # Ɛ → ɛ
+    "\u0194": "\u0263",  # Ɣ → ɣ
+    "\u010C": "\u010D",  # Č → č
+    "\u01E6": "\u011F",  # Ǧ → ğ
+    "\u0162": "\u0163",  # Ţ → ţ
 }
 
 def normalize_tmz(text: str) -> str:
@@ -170,12 +181,8 @@ def normalize_tmz(text: str) -> str:
         text = text.replace(src, dst)
     return text
 
-# Minuscules + majuscules : chaque lettre est indépendante (pas de lien maj/min en tamazight)
-TMZ_SPECIAL_CHARS = set(
-    "ḍṭṣẓṛḥɛɣčğţʷᵒ"   # minuscules
-    "ḌṬṢẒṚḤƐƔČǦŢ"     # majuscules (Ẓ ≠ ẓ, Ḍ ≠ ḍ, etc.)
-    "ƐƔŢ"               # variantes Unicode alternatives
-)
+# Caractères spéciaux tamazight (minuscules uniquement, les majuscules sont normalisées)
+TMZ_SPECIAL_CHARS = set("ḍṭṣẓṛḥɛɣčğţʷᵒ")
 
 def has_tamazight_chars(word: str) -> bool:
     """Vérifie si un mot contient des caractères spécifiques au Tamazight."""
