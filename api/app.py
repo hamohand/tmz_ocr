@@ -159,51 +159,103 @@ def has_tamazight_chars(word: str) -> bool:
 
 def hybrid_ocr(image, config: str = "--psm 3") -> dict:
     """
-    OCR hybride : utilise Tesseract en mode multi-langue (fra+tmz_latn).
-
-    Tesseract combine nativement les deux modèles pour choisir la meilleure
-    reconnaissance par mot, sans dédoublement.
+    OCR hybride intelligent :
+    1. Lancer tmz_latn → verrouiller les mots avec caractères spéciaux
+    2. Lancer fra → substituer les mots SANS caractères spéciaux si fra a une meilleure confiance
+    Matching par position spatiale (block, par, ligne, position x).
     """
-    # Essayer le mode multi-langue natif
-    try:
-        data = pytesseract.image_to_data(
-            image, lang="fra+tmz_latn", config=config, output_type=pytesseract.Output.DICT
-        )
-    except pytesseract.TesseractError:
-        # Fallback sur tmz_latn seul si fra indisponible
-        data = pytesseract.image_to_data(
-            image, lang="tmz_latn", config=config, output_type=pytesseract.Output.DICT
-        )
+    # 1. Passe tmz_latn (primaire)
+    data_tmz = pytesseract.image_to_data(
+        image, lang="tmz_latn", config=config, output_type=pytesseract.Output.DICT
+    )
 
-    # Construire les résultats
+    # 2. Passe fra (secondaire)
+    try:
+        data_fra = pytesseract.image_to_data(
+            image, lang="fra", config=config, output_type=pytesseract.Output.DICT
+        )
+        has_fra = True
+    except pytesseract.TesseractError:
+        data_fra = None
+        has_fra = False
+
+    # 3. Construire l'index spatial fra : {(block, par, line): [(x, word, conf), ...]}
+    fra_lines = {}
+    if has_fra and data_fra:
+        for i in range(len(data_fra["text"])):
+            word = data_fra["text"][i].strip()
+            if not word:
+                continue
+            key = (data_fra["block_num"][i], data_fra["par_num"][i], data_fra["line_num"][i])
+            if key not in fra_lines:
+                fra_lines[key] = []
+            fra_lines[key].append({
+                "word": word,
+                "conf": data_fra["conf"][i],
+                "x": data_fra["left"][i],
+                "w": data_fra["width"][i],
+            })
+
+    # 4. Parcourir tmz_latn et substituer si pertinent
     words_result = []
     lines = {}
 
-    for i in range(len(data["text"])):
-        word = data["text"][i].strip()
-        if not word:
+    for i in range(len(data_tmz["text"])):
+        word_tmz = data_tmz["text"][i].strip()
+        if not word_tmz:
             continue
 
-        conf = data["conf"][i]
-        block = data["block_num"][i]
-        par = data["par_num"][i]
-        line_num = data["line_num"][i]
+        conf_tmz = data_tmz["conf"][i]
+        block = data_tmz["block_num"][i]
+        par = data_tmz["par_num"][i]
+        line_num = data_tmz["line_num"][i]
+        x_tmz = data_tmz["left"][i]
+        w_tmz = data_tmz["width"][i]
 
-        source = "tmz_latn*" if has_tamazight_chars(word) else "hybrid"
+        chosen_word = word_tmz
+        chosen_conf = conf_tmz
+        chosen_source = "tmz_latn"
+
+        if has_tamazight_chars(word_tmz):
+            # 🔒 Verrouillé : contient des caractères spéciaux → garder tmz_latn
+            chosen_source = "tmz_latn🔒"
+        elif has_fra and fra_lines:
+            # Chercher le mot fra correspondant par position spatiale
+            key = (block, par, line_num)
+            if key in fra_lines:
+                best_match = None
+                best_overlap = 0
+                cx_tmz = x_tmz + w_tmz / 2  # centre x du mot tmz
+
+                for fra_word in fra_lines[key]:
+                    cx_fra = fra_word["x"] + fra_word["w"] / 2
+                    # Overlap = proximité des centres (en pixels)
+                    distance = abs(cx_tmz - cx_fra)
+                    max_w = max(w_tmz, fra_word["w"])
+                    if max_w > 0 and distance < max_w * 0.6:
+                        overlap = 1 - (distance / max_w)
+                        if overlap > best_overlap:
+                            best_overlap = overlap
+                            best_match = fra_word
+
+                if best_match and best_match["conf"] > conf_tmz and best_match["conf"] > 0:
+                    chosen_word = best_match["word"]
+                    chosen_conf = best_match["conf"]
+                    chosen_source = "fra"
 
         key = (block, par, line_num)
         if key not in lines:
             lines[key] = []
-        lines[key].append(word)
+        lines[key].append(chosen_word)
 
         words_result.append({
-            "text": word,
-            "confidence": conf,
-            "source": source,
-            "x": data["left"][i],
-            "y": data["top"][i],
-            "w": data["width"][i],
-            "h": data["height"][i],
+            "text": chosen_word,
+            "confidence": chosen_conf,
+            "source": chosen_source,
+            "x": data_tmz["left"][i],
+            "y": data_tmz["top"][i],
+            "w": data_tmz["width"][i],
+            "h": data_tmz["height"][i],
         })
 
     # Reconstruire le texte ligne par ligne
@@ -217,9 +269,16 @@ def hybrid_ocr(image, config: str = "--psm 3") -> dict:
     special_confs = [w["confidence"] for w in words_result if w["confidence"] > 0 and has_tamazight_chars(w["text"])]
     special_words = [w["text"] for w in words_result if has_tamazight_chars(w["text"])]
 
+    # Statistiques sources
+    sources = {}
+    for w in words_result:
+        s = w["source"]
+        sources[s] = sources.get(s, 0) + 1
+
     return {
         "text": final_text,
         "words": words_result,
+        "sources": sources,
         "avg_confidence": round(sum(all_confs) / len(all_confs), 1) if all_confs else 0,
         "special_confidence": round(sum(special_confs) / len(special_confs), 1) if special_confs else 0,
         "special_count": len(special_words),

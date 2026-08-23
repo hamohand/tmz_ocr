@@ -891,8 +891,10 @@ $('btnOcr').addEventListener('click', async () => {
         const srcInfo = $('sourcesInfo');
         if (data.sources) {
             const s = data.sources;
-            const total = (s['tmz_latn'] || 0) + (s['tmz_latn*'] || 0) + (s['fra'] || 0);
-            srcInfo.innerHTML = `Mode hybride — <b>${s['fra'] || 0}</b> mots via fra, <b>${(s['tmz_latn'] || 0) + (s['tmz_latn*'] || 0)}</b> via tmz_latn (dont <b>${s['tmz_latn*'] || 0}</b> forcés car car. spéciaux)`;
+            const locked = s['tmz_latn🔒'] || 0;
+            const tmz = s['tmz_latn'] || 0;
+            const fra = s['fra'] || 0;
+            srcInfo.innerHTML = `Hybride — 🔒 <b>${locked}</b> mots verrouillés (car. spéciaux), <b>${fra}</b> substitués par fra, <b>${tmz}</b> tmz_latn standard`;
             srcInfo.style.display = '';
         } else {
             srcInfo.style.display = 'none';
