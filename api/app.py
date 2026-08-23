@@ -150,7 +150,21 @@ def auto_detect_psm(image: Image.Image, user_psm: int = 3) -> int:
 
 
 # ── Caractères spécifiques Tamazight ───────────────────────────
-TMZ_SPECIAL_CHARS = set("ḍṭṣẓṛḥɛɣčğţεԐƐƔŢʷᵒ")
+
+# Table de normalisation : caractères visuellement identiques → forme standard tamazight
+TMZ_NORMALIZE = {
+    "\u03B5": "\u025B",  # ε epsilon grec → ɛ latin open e
+    "\u0190": "\u0190",  # Ɛ (déjà correct, Latin capital open E)
+    "\u0194": "\u0194",  # Ɣ (déjà correct, Latin capital Gamma)
+}
+
+def normalize_tmz(text: str) -> str:
+    """Normalise les caractères confusables vers leur forme standard tamazight."""
+    for src, dst in TMZ_NORMALIZE.items():
+        text = text.replace(src, dst)
+    return text
+
+TMZ_SPECIAL_CHARS = set("ḍṭṣẓṛḥɛɣčğţƐƔŢʷᵒ")
 
 def has_tamazight_chars(word: str) -> bool:
     """Vérifie si un mot contient des caractères spécifiques au Tamazight."""
@@ -275,11 +289,15 @@ def hybrid_ocr(image, config: str = "--psm 3") -> dict:
             "h": data_tmz["height"][i],
         })
 
-    # Reconstruire le texte ligne par ligne
+    # Reconstruire le texte ligne par ligne (avec normalisation)
     text_lines = []
     for key in sorted(lines.keys()):
         text_lines.append(" ".join(lines[key]))
-    final_text = "\n".join(text_lines)
+    final_text = normalize_tmz("\n".join(text_lines))
+
+    # Normaliser aussi les mots individuels pour le comptage
+    for w in words_result:
+        w["text"] = normalize_tmz(w["text"])
 
     # Confiance globale et confiance sur les caractères spéciaux
     all_confs = [w["confidence"] for w in words_result if w["confidence"] > 0]
@@ -548,10 +566,10 @@ async def perform_ocr(
 def _single_lang_ocr(image, lang: str, config: str) -> dict:
     """OCR avec un seul modèle, retourne texte + confiance globale + confiance spéciale."""
     data = pytesseract.image_to_data(image, lang=lang, config=config, output_type=pytesseract.Output.DICT)
-    words = [data["text"][i] for i in range(len(data["text"])) if data["text"][i].strip()]
+    words = [normalize_tmz(data["text"][i]) for i in range(len(data["text"])) if data["text"][i].strip()]
     confs = [data["conf"][i] for i in range(len(data["text"])) if data["text"][i].strip() and data["conf"][i] > 0]
-    special_confs = [data["conf"][i] for i in range(len(data["text"])) if data["text"][i].strip() and data["conf"][i] > 0 and has_tamazight_chars(data["text"][i])]
-    special_words = [data["text"][i] for i in range(len(data["text"])) if data["text"][i].strip() and has_tamazight_chars(data["text"][i])]
+    special_confs = [data["conf"][i] for i in range(len(data["text"])) if data["text"][i].strip() and data["conf"][i] > 0 and has_tamazight_chars(normalize_tmz(data["text"][i]))]
+    special_words = [normalize_tmz(data["text"][i]) for i in range(len(data["text"])) if data["text"][i].strip() and has_tamazight_chars(normalize_tmz(data["text"][i]))]
     text = " ".join(words)
     special = count_special_chars(text)
     return {
