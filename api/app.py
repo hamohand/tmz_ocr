@@ -279,7 +279,7 @@ async def perform_ocr(
     preprocess: Optional[str] = Form("auto"),
     psm: Optional[int] = Form(3),
     confidence: Optional[bool] = Form(False),
-    mode: Optional[str] = Form("hybrid"),
+    mode: Optional[str] = Form("tmz_only"),
     columns: Optional[int] = Form(1),
 ):
     """
@@ -532,7 +532,7 @@ async def perform_pdf_ocr(
     file: UploadFile = File(...),
     preprocess: Optional[str] = Form("auto"),
     psm: Optional[int] = Form(3),
-    mode: Optional[str] = Form("hybrid"),
+    mode: Optional[str] = Form("tmz_only"),
     columns: Optional[int] = Form(1),
     pages: Optional[str] = Form("all"),
     dpi: Optional[int] = Form(150),
