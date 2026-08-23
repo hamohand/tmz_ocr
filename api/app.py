@@ -30,6 +30,12 @@ try:
 except ImportError:
     HAS_PDF2IMAGE = False
 
+try:
+    import fitz  # PyMuPDF
+    HAS_FITZ = True
+except ImportError:
+    HAS_FITZ = False
+
 # ── Configuration ──────────────────────────────────────────────
 MODELS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models"))
 os.environ["TESSDATA_PREFIX"] = MODELS_DIR
@@ -714,7 +720,49 @@ async def perform_pdf_ocr(
         combined = "\n\n".join(all_texts)
         special_global = count_special_chars(combined)
 
-        return JSONResponse(content={
+        # Extraire le texte intégré du PDF (si disponible) pour comparaison
+        pdf_comparison = None
+        if HAS_FITZ:
+            try:
+                doc = fitz.open(stream=content, filetype="pdf")
+                pdf_texts = []
+                for page_idx in page_indices:
+                    page = doc[page_idx]
+                    pdf_texts.append(normalize_tmz(page.get_text()))
+                pdf_text_combined = "\n".join(pdf_texts)
+                doc.close()
+
+                if pdf_text_combined.strip():
+                    pdf_special = count_special_chars(pdf_text_combined)
+                    ocr_detail = special_global["detail"]
+                    pdf_detail = pdf_special["detail"]
+
+                    # Comparer caractère par caractère
+                    all_chars = set(list(ocr_detail.keys()) + list(pdf_detail.keys()))
+                    comparison = {}
+                    total_correct = 0
+                    total_expected = 0
+                    for c in sorted(all_chars):
+                        expected = pdf_detail.get(c, 0)
+                        found = ocr_detail.get(c, 0)
+                        comparison[c] = {"expected": expected, "found": found, "diff": found - expected}
+                        total_correct += min(found, expected)
+                        total_expected += expected
+
+                    accuracy = round(total_correct / total_expected * 100, 1) if total_expected > 0 else 0
+
+                    pdf_comparison = {
+                        "pdf_special": pdf_special,
+                        "accuracy": accuracy,
+                        "comparison": comparison,
+                        "has_embedded_text": True,
+                    }
+                else:
+                    pdf_comparison = {"has_embedded_text": False}
+            except Exception:
+                pdf_comparison = {"has_embedded_text": False}
+
+        response = {
             "mode": ocr_mode,
             "columns": num_cols,
             "dpi": render_dpi,
@@ -727,7 +775,10 @@ async def perform_pdf_ocr(
             "special_detail": special_global,
             "combined_text": combined,
             "pages": page_results,
-        })
+        }
+        if pdf_comparison:
+            response["pdf_comparison"] = pdf_comparison
+        return JSONResponse(content=response)
 
     except HTTPException:
         raise

@@ -850,7 +850,21 @@ $('btnOcr').addEventListener('click', async () => {
                 const detail = Object.entries(sd.detail).map(([c, n]) => `${c}×${n}`).join(' ');
                 specialInfo = ' • ⵣ ' + sd.total_chars + ' car. (' + sd.total_words + ' mots) : ' + detail;
             }
+            // Comparaison PDF vs OCR
+            let compInfo = '';
+            const pc = data.pdf_comparison;
+            if (pc && pc.has_embedded_text) {
+                const pdfDetail = Object.entries(pc.pdf_special.detail).map(([c, n]) => `${c}×${n}`).join(' ');
+                const diffs = Object.entries(pc.comparison)
+                    .filter(([c, v]) => v.diff !== 0)
+                    .map(([c, v]) => `${c}: ${v.found}/${v.expected} (${v.diff > 0 ? '+' : ''}${v.diff})`)
+                    .join(', ');
+                compInfo = `\n📊 PDF: ${pc.pdf_special.total_chars} car. : ${pdfDetail}\n🎯 Précision ⵣ : ${pc.accuracy}%` + (diffs ? ` — Écarts: ${diffs}` : ' — Aucun écart ✅');
+            }
             $('confidenceBadge').textContent = data.avg_confidence + '%' + specialInfo + ' • ' + pagesInfo + colsInfo + ' • ' + data.dpi + ' DPI';
+            if (compInfo) {
+                $('confidenceBadge').textContent += compInfo;
+            }
             $('result').classList.add('visible');
             btn.disabled = false;
             btn.classList.remove('loading');
