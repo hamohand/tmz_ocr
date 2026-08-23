@@ -170,7 +170,12 @@ def normalize_tmz(text: str) -> str:
         text = text.replace(src, dst)
     return text
 
-TMZ_SPECIAL_CHARS = set("ḍṭṣẓṛḥɛɣčğţƐƔŢʷᵒ")
+# Minuscules + majuscules : chaque lettre est indépendante (pas de lien maj/min en tamazight)
+TMZ_SPECIAL_CHARS = set(
+    "ḍṭṣẓṛḥɛɣčğţʷᵒ"   # minuscules
+    "ḌṬṢẒṚḤƐƔČǦŢ"     # majuscules (Ẓ ≠ ẓ, Ḍ ≠ ḍ, etc.)
+    "ƐƔŢ"               # variantes Unicode alternatives
+)
 
 def has_tamazight_chars(word: str) -> bool:
     """Vérifie si un mot contient des caractères spécifiques au Tamazight."""
