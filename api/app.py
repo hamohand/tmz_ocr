@@ -159,7 +159,8 @@ def auto_detect_psm(image: Image.Image, user_psm: int = 3) -> int:
 
 # Table de normalisation :
 # 1. ε epsilon grec → ɛ latin (pas de ε dans l'alphabet tamazight)
-# 2. Majuscules → minuscules (pas de notion maj/min pour les caractères spéciaux)
+# 2. Majuscules → minuscules : le PDF ne connait pas le lien entre Ẓ et ẓ,
+#    on normalise tout en minuscules pour simplifier la comparaison PDF vs OCR
 TMZ_NORMALIZE = {
     "\u03B5": "\u025B",  # ε epsilon grec → ɛ latin open e
     "\u1E0C": "\u1E0D",  # Ḍ → ḍ
