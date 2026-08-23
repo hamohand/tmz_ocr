@@ -150,11 +150,28 @@ def auto_detect_psm(image: Image.Image, user_psm: int = 3) -> int:
 
 
 # ── Caractères spécifiques Tamazight ───────────────────────────
-TMZ_SPECIAL_CHARS = set("ḍṭṣẓṛḥɛɣčğţεԐƐƔŢ")
+TMZ_SPECIAL_CHARS = set("ḍṭṣẓṛḥɛɣčğţεԐƐƔŢʷᵒ")
 
 def has_tamazight_chars(word: str) -> bool:
     """Vérifie si un mot contient des caractères spécifiques au Tamazight."""
     return any(c in TMZ_SPECIAL_CHARS for c in word)
+
+
+def count_special_chars(text: str) -> dict:
+    """Compte les caractères spéciaux tamazight dans un texte.
+    Retourne le détail par caractère et le total."""
+    char_counts = {}
+    for c in text:
+        if c in TMZ_SPECIAL_CHARS:
+            char_counts[c] = char_counts.get(c, 0) + 1
+    total = sum(char_counts.values())
+    # Compter les mots contenant au moins un caractère spécial
+    words_with_special = [w for w in text.split() if has_tamazight_chars(w)]
+    return {
+        "total_chars": total,
+        "total_words": len(words_with_special),
+        "detail": dict(sorted(char_counts.items(), key=lambda x: -x[1])),
+    }
 
 
 def hybrid_ocr(image, config: str = "--psm 3") -> dict:
@@ -282,6 +299,7 @@ def hybrid_ocr(image, config: str = "--psm 3") -> dict:
         "avg_confidence": round(sum(all_confs) / len(all_confs), 1) if all_confs else 0,
         "special_confidence": round(sum(special_confs) / len(special_confs), 1) if special_confs else 0,
         "special_count": len(special_words),
+        "special_detail": count_special_chars(final_text),
     }
 
 
@@ -535,11 +553,13 @@ def _single_lang_ocr(image, lang: str, config: str) -> dict:
     special_confs = [data["conf"][i] for i in range(len(data["text"])) if data["text"][i].strip() and data["conf"][i] > 0 and has_tamazight_chars(data["text"][i])]
     special_words = [data["text"][i] for i in range(len(data["text"])) if data["text"][i].strip() and has_tamazight_chars(data["text"][i])]
     text = " ".join(words)
+    special = count_special_chars(text)
     return {
         "text": text,
         "avg_confidence": round(sum(confs) / len(confs), 1) if confs else 0,
         "special_confidence": round(sum(special_confs) / len(special_confs), 1) if special_confs else 0,
         "special_count": len(special_words),
+        "special_detail": special,
     }
 
 
@@ -573,14 +593,15 @@ def ocr_single_image(image: Image.Image, preprocess_mode: str, psm: int, mode: s
             special_conf = sum(sc * cnt for sc, cnt in zip(all_special_confs, all_special_counts)) / total_special
         else:
             special_conf = 0
-        return {"text": text, "avg_confidence": round(avg_conf, 1), "special_confidence": round(special_conf, 1), "special_count": total_special}
+        special = count_special_chars(text)
+        return {"text": text, "avg_confidence": round(avg_conf, 1), "special_confidence": round(special_conf, 1), "special_count": total_special, "special_detail": special}
     else:
         processed = preprocess_image(image, mode=preprocess_mode)
         effective_psm = auto_detect_psm(image, user_psm=psm)
         config = f"--psm {effective_psm}"
         if mode == "hybrid":
             result = hybrid_ocr(processed, config=config)
-            return {"text": result["text"], "avg_confidence": result["avg_confidence"], "special_confidence": result.get("special_confidence", 0), "special_count": result.get("special_count", 0)}
+            return {"text": result["text"], "avg_confidence": result["avg_confidence"], "special_confidence": result.get("special_confidence", 0), "special_count": result.get("special_count", 0), "special_detail": result.get("special_detail", {})}
         else:
             lang = "kab" if mode == "kab_only" else "tmz_latn"
             return _single_lang_ocr(processed, lang, config)
@@ -672,6 +693,9 @@ async def perform_pdf_ocr(
         else:
             special_conf_global = 0
 
+        combined = "\n\n".join(all_texts)
+        special_global = count_special_chars(combined)
+
         return JSONResponse(content={
             "mode": ocr_mode,
             "columns": num_cols,
@@ -682,7 +706,8 @@ async def perform_pdf_ocr(
             "avg_confidence": round(avg_conf_global, 1),
             "special_confidence": round(special_conf_global, 1),
             "special_count": total_special,
-            "combined_text": "\n\n".join(all_texts),
+            "special_detail": special_global,
+            "combined_text": combined,
             "pages": page_results,
         })
 
