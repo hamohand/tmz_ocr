@@ -212,10 +212,17 @@ def hybrid_ocr(image, config: str = "--psm 3") -> dict:
         text_lines.append(" ".join(lines[key]))
     final_text = "\n".join(text_lines)
 
+    # Confiance globale et confiance sur les caractères spéciaux
+    all_confs = [w["confidence"] for w in words_result if w["confidence"] > 0]
+    special_confs = [w["confidence"] for w in words_result if w["confidence"] > 0 and has_tamazight_chars(w["text"])]
+    special_words = [w["text"] for w in words_result if has_tamazight_chars(w["text"])]
+
     return {
         "text": final_text,
         "words": words_result,
-        "avg_confidence": round(sum(w["confidence"] for w in words_result) / len(words_result), 1) if words_result else 0,
+        "avg_confidence": round(sum(all_confs) / len(all_confs), 1) if all_confs else 0,
+        "special_confidence": round(sum(special_confs) / len(special_confs), 1) if special_confs else 0,
+        "special_count": len(special_words),
     }
 
 
@@ -461,12 +468,30 @@ async def perform_ocr(
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 
+def _single_lang_ocr(image, lang: str, config: str) -> dict:
+    """OCR avec un seul modèle, retourne texte + confiance globale + confiance spéciale."""
+    data = pytesseract.image_to_data(image, lang=lang, config=config, output_type=pytesseract.Output.DICT)
+    words = [data["text"][i] for i in range(len(data["text"])) if data["text"][i].strip()]
+    confs = [data["conf"][i] for i in range(len(data["text"])) if data["text"][i].strip() and data["conf"][i] > 0]
+    special_confs = [data["conf"][i] for i in range(len(data["text"])) if data["text"][i].strip() and data["conf"][i] > 0 and has_tamazight_chars(data["text"][i])]
+    special_words = [data["text"][i] for i in range(len(data["text"])) if data["text"][i].strip() and has_tamazight_chars(data["text"][i])]
+    text = " ".join(words)
+    return {
+        "text": text,
+        "avg_confidence": round(sum(confs) / len(confs), 1) if confs else 0,
+        "special_confidence": round(sum(special_confs) / len(special_confs), 1) if special_confs else 0,
+        "special_count": len(special_words),
+    }
+
+
 def ocr_single_image(image: Image.Image, preprocess_mode: str, psm: int, mode: str, num_cols: int) -> dict:
     """Traite une seule image avec OCR (utilisé par les endpoints image et PDF)."""
     if num_cols > 1:
         col_images = split_image_columns(image, num_cols)
         all_texts = []
         all_confs = []
+        all_special_confs = []
+        all_special_counts = []
         for col_img in col_images:
             col_processed = preprocess_image(col_img, mode=preprocess_mode)
             col_psm = auto_detect_psm(col_img, user_psm=psm)
@@ -474,36 +499,32 @@ def ocr_single_image(image: Image.Image, preprocess_mode: str, psm: int, mode: s
             if mode == "hybrid":
                 col_result = hybrid_ocr(col_processed, config=col_config)
             elif mode == "kab_only":
-                col_data = pytesseract.image_to_data(col_processed, lang="kab", config=col_config, output_type=pytesseract.Output.DICT)
-                col_words = [col_data["text"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip()]
-                col_confs_list = [col_data["conf"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip() and col_data["conf"][i] > 0]
-                col_result = {"text": " ".join(col_words), "avg_confidence": sum(col_confs_list) / len(col_confs_list) if col_confs_list else 0}
+                col_result = _single_lang_ocr(col_processed, "kab", col_config)
             else:
-                lang = "tmz_latn"
-                col_data = pytesseract.image_to_data(col_processed, lang=lang, config=col_config, output_type=pytesseract.Output.DICT)
-                col_words = [col_data["text"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip()]
-                col_confs_list = [col_data["conf"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip() and col_data["conf"][i] > 0]
-                col_result = {"text": " ".join(col_words), "avg_confidence": sum(col_confs_list) / len(col_confs_list) if col_confs_list else 0}
+                col_result = _single_lang_ocr(col_processed, "tmz_latn", col_config)
             all_texts.append(col_result["text"])
             all_confs.append(col_result.get("avg_confidence", 0))
+            all_special_confs.append(col_result.get("special_confidence", 0))
+            all_special_counts.append(col_result.get("special_count", 0))
         text = "\n\n--- Colonne 2 ---\n\n".join(all_texts)
         avg_conf = sum(all_confs) / len(all_confs) if all_confs else 0
-        return {"text": text, "avg_confidence": round(avg_conf, 1)}
+        # Moyenne pondérée par le nombre de mots spéciaux
+        total_special = sum(all_special_counts)
+        if total_special > 0:
+            special_conf = sum(sc * cnt for sc, cnt in zip(all_special_confs, all_special_counts)) / total_special
+        else:
+            special_conf = 0
+        return {"text": text, "avg_confidence": round(avg_conf, 1), "special_confidence": round(special_conf, 1), "special_count": total_special}
     else:
         processed = preprocess_image(image, mode=preprocess_mode)
         effective_psm = auto_detect_psm(image, user_psm=psm)
         config = f"--psm {effective_psm}"
         if mode == "hybrid":
             result = hybrid_ocr(processed, config=config)
-            return {"text": result["text"], "avg_confidence": result["avg_confidence"]}
+            return {"text": result["text"], "avg_confidence": result["avg_confidence"], "special_confidence": result.get("special_confidence", 0), "special_count": result.get("special_count", 0)}
         else:
             lang = "kab" if mode == "kab_only" else "tmz_latn"
-            data = pytesseract.image_to_data(processed, lang=lang, config=config, output_type=pytesseract.Output.DICT)
-            words = [data["text"][i] for i in range(len(data["text"])) if data["text"][i].strip()]
-            confs = [data["conf"][i] for i in range(len(data["text"])) if data["text"][i].strip() and data["conf"][i] > 0]
-            text = " ".join(words)
-            avg_conf = sum(confs) / len(confs) if confs else 0
-            return {"text": text, "avg_confidence": round(avg_conf, 1)}
+            return _single_lang_ocr(processed, lang, config)
 
 
 @app.post("/api/ocr-pdf")
@@ -578,12 +599,19 @@ async def perform_pdf_ocr(
                 "page": page_idx + 1,
                 "text": result["text"],
                 "avg_confidence": result["avg_confidence"],
+                "special_confidence": result.get("special_confidence", 0),
+                "special_count": result.get("special_count", 0),
                 "image_size": {"width": page_image.size[0], "height": page_image.size[1]},
             })
             all_texts.append(f"--- Page {page_idx + 1} ---\n{result['text']}")
 
         # Statistiques globales
         avg_conf_global = sum(p["avg_confidence"] for p in page_results) / len(page_results) if page_results else 0
+        total_special = sum(p["special_count"] for p in page_results)
+        if total_special > 0:
+            special_conf_global = sum(p["special_confidence"] * p["special_count"] for p in page_results) / total_special
+        else:
+            special_conf_global = 0
 
         return JSONResponse(content={
             "mode": ocr_mode,
@@ -593,6 +621,8 @@ async def perform_pdf_ocr(
             "total_pages": total_pages,
             "pages_processed": len(page_results),
             "avg_confidence": round(avg_conf_global, 1),
+            "special_confidence": round(special_conf_global, 1),
+            "special_count": total_special,
             "combined_text": "\n\n".join(all_texts),
             "pages": page_results,
         })

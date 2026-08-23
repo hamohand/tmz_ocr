@@ -844,7 +844,8 @@ $('btnOcr').addEventListener('click', async () => {
             $('resultText').textContent = text;
             const pagesInfo = data.pages_processed + '/' + data.total_pages + ' pages';
             const colsInfo = data.columns > 1 ? ' • ' + data.columns + ' col.' : '';
-            $('confidenceBadge').textContent = data.avg_confidence + '% • ' + pagesInfo + colsInfo + ' • ' + data.dpi + ' DPI';
+            const specialInfo = data.special_count > 0 ? ' • ⵣ ' + data.special_confidence + '% (' + data.special_count + ' mots)' : '';
+            $('confidenceBadge').textContent = data.avg_confidence + '%' + specialInfo + ' • ' + pagesInfo + colsInfo + ' • ' + data.dpi + ' DPI';
             $('result').classList.add('visible');
             btn.disabled = false;
             btn.classList.remove('loading');
@@ -878,7 +879,8 @@ $('btnOcr').addEventListener('click', async () => {
         const badge = $('confidenceBadge');
         if (data.avg_confidence !== undefined) {
             const conf = data.avg_confidence;
-            badge.textContent = `${conf.toFixed(0)}% confiance`;
+            const specialInfo = data.special_count > 0 ? ` • ⵣ ${data.special_confidence}% (${data.special_count} mots)` : '';
+            badge.textContent = `${conf.toFixed(0)}% confiance${specialInfo}`;
             badge.className = 'confidence ' + (conf >= 75 ? 'high' : conf >= 50 ? 'medium' : 'low');
             badge.style.display = '';
         } else {
