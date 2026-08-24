@@ -847,14 +847,14 @@ $('btnOcr').addEventListener('click', async () => {
             const colsInfo = data.columns > 1 ? ' • ' + data.columns + ' col.' : '';
             const sd = data.special_detail;
             let specialInfo = '';
-            if (sd && sd.total_chars > 0) {
+            if (sd && sd.detail && sd.total_chars > 0) {
                 const detail = Object.entries(sd.detail).map(([c, n]) => `${c}×${n}`).join(' ');
                 specialInfo = ' • ⵣ ' + sd.total_chars + ' car. (' + sd.total_words + ' mots) : ' + detail;
             }
             // Comparaison PDF vs OCR
             let compInfo = '';
             const pc = data.pdf_comparison;
-            if (pc && pc.has_embedded_text) {
+            if (pc && pc.has_embedded_text && pc.pdf_special && pc.pdf_special.detail && pc.comparison) {
                 const pdfDetail = Object.entries(pc.pdf_special.detail).map(([c, n]) => `${c}×${n}`).join(' ');
                 const diffs = Object.entries(pc.comparison)
                     .filter(([c, v]) => v.diff !== 0)
@@ -907,7 +907,7 @@ $('btnOcr').addEventListener('click', async () => {
             const conf = data.avg_confidence;
             const sd = data.special_detail;
             let specialInfo = '';
-            if (sd && sd.total_chars > 0) {
+            if (sd && sd.detail && sd.total_chars > 0) {
                 const detail = Object.entries(sd.detail).map(([c, n]) => `${c}×${n}`).join(' ');
                 specialInfo = ` • ⵣ ${sd.total_chars} car. (${sd.total_words} mots) : ${detail}`;
             }
