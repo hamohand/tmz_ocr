@@ -807,31 +807,34 @@ async def perform_pdf_ocr(
                 "accuracy": accuracy,
             }
 
-        # DPI auto : essayer 150, 300 et 600, garder le meilleur
+        # DPI auto : essayer 150 et 300, garder le meilleur
         requested_dpi = dpi or 0
         if requested_dpi == 0:
-            results = {}
-            for d in [150, 300, 600]:
-                results[d] = _ocr_at_dpi(d)
+            result_150 = _ocr_at_dpi(150)
+            result_300 = _ocr_at_dpi(300)
 
-            if results[150] is None:
+            if result_150 is None:
                 raise HTTPException(status_code=400, detail="Aucune page valide.")
 
             # Choisir le meilleur par précision ⵣ, sinon par nombre de car. spéciaux
-            has_accuracy = any(r["accuracy"] > 0 for r in results.values() if r)
-            if has_accuracy:
-                best = max((r for r in results.values() if r), key=lambda r: r["accuracy"])
+            acc_150 = result_150["accuracy"]
+            acc_300 = result_300["accuracy"] if result_300 else 0
+            if acc_150 > 0 or acc_300 > 0:
+                best = result_150 if acc_150 >= acc_300 else result_300
             else:
-                best = max((r for r in results.values() if r), key=lambda r: r["special_global"]["total_chars"])
+                sp_150 = result_150["special_global"]["total_chars"]
+                sp_300 = result_300["special_global"]["total_chars"] if result_300 else 0
+                best = result_150 if sp_150 >= sp_300 else result_300
 
             chosen_dpi = best["dpi"]
+            other = result_300 if chosen_dpi == 150 else result_150
         else:
             render_dpi = min(max(requested_dpi, 150), 600)
             best = _ocr_at_dpi(render_dpi)
             if best is None:
                 raise HTTPException(status_code=400, detail="Aucune page valide.")
             chosen_dpi = render_dpi
-            results = None
+            other = None
 
         # Construire la réponse
         response = {
@@ -850,43 +853,35 @@ async def perform_pdf_ocr(
         }
         if best["pdf_comparison"]:
             response["pdf_comparison"] = best["pdf_comparison"]
-        if results:
-            # Tableau comparatif des 3 DPI
-            dpi_table = []
-            for d in [150, 300, 600]:
-                r = results[d]
-                if r:
-                    dpi_table.append({
-                        "dpi": d,
-                        "chosen": d == chosen_dpi,
-                        "accuracy": r["accuracy"],
-                        "special_chars": r["special_global"]["total_chars"],
-                        "special_detail": r["special_global"]["detail"],
-                        "avg_confidence": round(r["avg_conf"], 1),
-                    })
-
-            # Concordance : caractères trouvés par les 3 DPI
-            all_details = [results[d]["special_global"]["detail"] for d in [150, 300, 600] if results[d]]
-            all_chars_set = set()
-            for det in all_details:
-                all_chars_set.update(det.keys())
-            agreement = {}
+        if other:
+            # Rapport 150/300 par caractère — mesure fine de fiabilité
+            detail_150 = result_150["special_global"]["detail"]
+            detail_300 = result_300["special_global"]["detail"]
+            all_chars = set(list(detail_150.keys()) + list(detail_300.keys()))
+            rapport = {}
             agreed_total = 0
             total_max = 0
-            for c in sorted(all_chars_set):
-                counts = {d: results[d]["special_global"]["detail"].get(c, 0) for d in [150, 300, 600] if results[d]}
-                agreed = min(counts.values())
-                max_count = max(counts.values())
-                agreed_total += agreed
-                total_max += max_count
-                agreement[c] = {**{f"dpi_{d}": v for d, v in counts.items()}, "agreed": agreed, "match": len(set(counts.values())) == 1}
-            agreement_pct = round(agreed_total / total_max * 100, 1) if total_max > 0 else 100
+            for c in sorted(all_chars):
+                n150 = detail_150.get(c, 0)
+                n300 = detail_300.get(c, 0)
+                mx = max(n150, n300)
+                mn = min(n150, n300)
+                agreed_total += mn
+                total_max += mx
+                # Ratio = min/max (1.0 = identique, <1.0 = écart)
+                ratio = round(mn / mx, 2) if mx > 0 else 1.0
+                rapport[c] = {"n150": n150, "n300": n300, "ratio": ratio}
+            concordance = round(agreed_total / total_max * 100, 1) if total_max > 0 else 100
 
             response["dpi_auto"] = {
                 "chosen": chosen_dpi,
-                "dpi_table": dpi_table,
-                "agreement_pct": agreement_pct,
-                "agreement": agreement,
+                "other_dpi": other["dpi"],
+                "n150_total": result_150["special_global"]["total_chars"],
+                "n300_total": result_300["special_global"]["total_chars"],
+                "acc_150": acc_150,
+                "acc_300": acc_300,
+                "concordance": concordance,
+                "rapport": rapport,
             }
         return JSONResponse(content=response)
 

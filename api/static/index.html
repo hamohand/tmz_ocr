@@ -650,10 +650,9 @@
         <div class="option-group">
             <label>DPI</label>
             <select id="pdfDpi">
-                <option value="0" selected>Auto (150+300+600, meilleur ⵣ)</option>
+                <option value="0" selected>Auto (150+300, meilleur ⵣ)</option>
                 <option value="150">150 fixe</option>
                 <option value="300">300 fixe</option>
-                <option value="600">600 fixe</option>
             </select>
         </div>
     </div>
@@ -863,38 +862,29 @@ $('btnOcr').addEventListener('click', async () => {
                     .join(', ');
                 compInfo = `\n📊 PDF: ${pc.pdf_special.total_chars} car. : ${pdfDetail}\n🎯 Précision ⵣ : ${pc.accuracy}%` + (diffs ? ` — Écarts: ${diffs}` : ' — Aucun écart ✅');
             }
-            // DPI auto info + concordance
+            // DPI auto info + rapport par lettre
             let dpiInfo = data.dpi + ' DPI';
-            let agreementInfo = '';
+            let rapportInfo = '';
             if (data.dpi_auto) {
                 const da = data.dpi_auto;
-                // Tableau comparatif des DPI
-                if (da.dpi_table) {
-                    const tableInfo = da.dpi_table.map(r => {
-                        const mark = r.chosen ? '✓' : ' ';
-                        const acc = r.accuracy > 0 ? `ⵣ${r.accuracy}%` : `${r.special_chars} car.`;
-                        return `${r.dpi}${mark}:${acc}`;
-                    }).join(' | ');
-                    dpiInfo = tableInfo;
-                }
-                // Concordance 150/300/600 DPI
-                if (da.agreement) {
-                    const mismatches = Object.entries(da.agreement)
-                        .filter(([c, v]) => !v.match)
+                dpiInfo = `${da.chosen} DPI ✓ (150:${da.n150_total} / 300:${da.n300_total} car.)`;
+                // Rapport 150/300 par lettre ⵣ
+                if (da.rapport) {
+                    const details = Object.entries(da.rapport)
                         .map(([c, v]) => {
-                            const vals = [150, 300, 600].map(d => v['dpi_' + d] ?? '-').join('/');
-                            return `${c}:${vals}`;
+                            const icon = v.ratio === 1 ? '✅' : v.ratio >= 0.8 ? '⚠️' : '❌';
+                            return `${c}:${v.n150}/${v.n300}${icon}`;
                         })
-                        .join(', ');
-                    agreementInfo = `\n🔄 Concordance : ${da.agreement_pct}%` + (mismatches ? ` — ${mismatches}` : ' — Identiques ✅');
+                        .join(' ');
+                    rapportInfo = `\n🔄 150/300 DPI (${da.concordance}%) : ${details}`;
                 }
             }
             $('confidenceBadge').textContent = data.avg_confidence + '%' + specialInfo + ' • ' + pagesInfo + colsInfo + ' • ' + dpiInfo;
             if (compInfo) {
                 $('confidenceBadge').textContent += compInfo;
             }
-            if (agreementInfo) {
-                $('confidenceBadge').textContent += agreementInfo;
+            if (rapportInfo) {
+                $('confidenceBadge').textContent += rapportInfo;
             }
             $('result').classList.add('visible');
             btn.disabled = false;
