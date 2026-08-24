@@ -862,15 +862,31 @@ $('btnOcr').addEventListener('click', async () => {
                     .join(', ');
                 compInfo = `\n📊 PDF: ${pc.pdf_special.total_chars} car. : ${pdfDetail}\n🎯 Précision ⵣ : ${pc.accuracy}%` + (diffs ? ` — Écarts: ${diffs}` : ' — Aucun écart ✅');
             }
-            // DPI auto info
+            // DPI auto info + concordance
             let dpiInfo = data.dpi + ' DPI';
+            let agreementInfo = '';
             if (data.dpi_auto) {
                 const da = data.dpi_auto;
-                dpiInfo = `${da.chosen} DPI ✓ (vs ${da.other_dpi}: ⵣ ${da.chosen_accuracy}% vs ${da.other_accuracy}%)`;
+                if (da.chosen_accuracy > 0 || da.other_accuracy > 0) {
+                    dpiInfo = `${da.chosen} DPI ✓ (vs ${da.other_dpi}: ⵣ ${da.chosen_accuracy}% vs ${da.other_accuracy}%)`;
+                } else {
+                    dpiInfo = `${da.chosen} DPI ✓ (vs ${da.other_dpi}: ${da.chosen_special_chars} vs ${da.other_special_chars} car.)`;
+                }
+                // Concordance 150/300 DPI
+                if (da.agreement) {
+                    const mismatches = Object.entries(da.agreement)
+                        .filter(([c, v]) => !v.match)
+                        .map(([c, v]) => `${c}: ${v['dpi_150'] ?? '?'}/${v['dpi_300'] ?? '?'}`)
+                        .join(', ');
+                    agreementInfo = `\n🔄 Concordance 150/300 DPI : ${da.agreement_pct}%` + (mismatches ? ` — Écarts: ${mismatches}` : ' — Identiques ✅');
+                }
             }
             $('confidenceBadge').textContent = data.avg_confidence + '%' + specialInfo + ' • ' + pagesInfo + colsInfo + ' • ' + dpiInfo;
             if (compInfo) {
                 $('confidenceBadge').textContent += compInfo;
+            }
+            if (agreementInfo) {
+                $('confidenceBadge').textContent += agreementInfo;
             }
             $('result').classList.add('visible');
             btn.disabled = false;

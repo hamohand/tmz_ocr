@@ -858,6 +858,27 @@ async def perform_pdf_ocr(
         if best["pdf_comparison"]:
             response["pdf_comparison"] = best["pdf_comparison"]
         if other:
+            # Concordance entre les deux DPI (fiable même sans texte PDF)
+            detail_a = best["special_global"]["detail"]
+            detail_b = other["special_global"]["detail"]
+            all_chars = set(list(detail_a.keys()) + list(detail_b.keys()))
+            agreement = {}
+            agreed_total = 0
+            total_max = 0
+            for c in sorted(all_chars):
+                count_a = detail_a.get(c, 0)
+                count_b = detail_b.get(c, 0)
+                agreed = min(count_a, count_b)
+                agreed_total += agreed
+                total_max += max(count_a, count_b)
+                agreement[c] = {
+                    "dpi_" + str(best["dpi"]): count_a,
+                    "dpi_" + str(other["dpi"]): count_b,
+                    "agreed": agreed,
+                    "match": count_a == count_b,
+                }
+            agreement_pct = round(agreed_total / total_max * 100, 1) if total_max > 0 else 100
+
             response["dpi_auto"] = {
                 "chosen": chosen_dpi,
                 "other_dpi": other["dpi"],
@@ -865,6 +886,8 @@ async def perform_pdf_ocr(
                 "other_accuracy": other["accuracy"],
                 "chosen_special_chars": best["special_global"]["total_chars"],
                 "other_special_chars": other["special_global"]["total_chars"],
+                "agreement_pct": agreement_pct,
+                "agreement": agreement,
             }
         return JSONResponse(content=response)
 
