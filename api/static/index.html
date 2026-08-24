@@ -650,9 +650,10 @@
         <div class="option-group">
             <label>DPI</label>
             <select id="pdfDpi">
-                <option value="0" selected>Auto (150+300, meilleur ⵣ)</option>
+                <option value="0" selected>Auto (150+300+600, meilleur ⵣ)</option>
                 <option value="150">150 fixe</option>
                 <option value="300">300 fixe</option>
+                <option value="600">600 fixe</option>
             </select>
         </div>
     </div>
@@ -867,18 +868,25 @@ $('btnOcr').addEventListener('click', async () => {
             let agreementInfo = '';
             if (data.dpi_auto) {
                 const da = data.dpi_auto;
-                if (da.chosen_accuracy > 0 || da.other_accuracy > 0) {
-                    dpiInfo = `${da.chosen} DPI ✓ (vs ${da.other_dpi}: ⵣ ${da.chosen_accuracy}% vs ${da.other_accuracy}%)`;
-                } else {
-                    dpiInfo = `${da.chosen} DPI ✓ (vs ${da.other_dpi}: ${da.chosen_special_chars} vs ${da.other_special_chars} car.)`;
+                // Tableau comparatif des DPI
+                if (da.dpi_table) {
+                    const tableInfo = da.dpi_table.map(r => {
+                        const mark = r.chosen ? '✓' : ' ';
+                        const acc = r.accuracy > 0 ? `ⵣ${r.accuracy}%` : `${r.special_chars} car.`;
+                        return `${r.dpi}${mark}:${acc}`;
+                    }).join(' | ');
+                    dpiInfo = tableInfo;
                 }
-                // Concordance 150/300 DPI
+                // Concordance 150/300/600 DPI
                 if (da.agreement) {
                     const mismatches = Object.entries(da.agreement)
                         .filter(([c, v]) => !v.match)
-                        .map(([c, v]) => `${c}: ${v['dpi_150'] ?? '?'}/${v['dpi_300'] ?? '?'}`)
+                        .map(([c, v]) => {
+                            const vals = [150, 300, 600].map(d => v['dpi_' + d] ?? '-').join('/');
+                            return `${c}:${vals}`;
+                        })
                         .join(', ');
-                    agreementInfo = `\n🔄 Concordance 150/300 DPI : ${da.agreement_pct}%` + (mismatches ? ` — Écarts: ${mismatches}` : ' — Identiques ✅');
+                    agreementInfo = `\n🔄 Concordance : ${da.agreement_pct}%` + (mismatches ? ` — ${mismatches}` : ' — Identiques ✅');
                 }
             }
             $('confidenceBadge').textContent = data.avg_confidence + '%' + specialInfo + ' • ' + pagesInfo + colsInfo + ' • ' + dpiInfo;
