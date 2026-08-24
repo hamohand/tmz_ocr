@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ⵣ-OCR — Convertisseur de texte amazigh</title>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --card: #222533;
+            --border: #2d3148;
+            --text: #e4e6f0;
+            --text-dim: #8b8fa7;
+            --primary: #4f8cff;
+            --primary-hover: #6ba0ff;
+            --accent: #34d399;
+            --warning: #fbbf24;
+            --danger: #f87171;
+            --radius: 12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 700px;
+            padding: 1.5rem;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            padding: 2rem 0 1.5rem;
+        }
+        header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        header h1 span.yaz { color: var(--accent); font-size: 2.5rem; }
+        header p {
+            color: var(--text-dim);
+            margin-top: 0.4rem;
+            font-size: 0.95rem;
+        }
+
+        /* Drop zone */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 2.5rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--surface);
+            margin-bottom: 1rem;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(79, 140, 255, 0.05);
+        }
+        .drop-zone.has-file {
+            border-color: var(--accent);
+            border-style: solid;
+        }
+        .drop-zone .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+        .drop-zone .label { font-size: 1.05rem; color: var(--text); }
+        .drop-zone .hint { font-size: 0.85rem; color: var(--text-dim); margin-top: 0.3rem; }
+        .drop-zone .filename {
+            font-size: 1rem;
+            color: var(--accent);
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        /* Options */
+        .options {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 1rem;
+            padding: 0 0.25rem;
+        }
+        .options label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.95rem;
+            color: var(--text-dim);
+            cursor: pointer;
+            user-select: none;
+        }
+        .options input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+
+        /* Button */
+        .btn {
+            width: 100%;
+            padding: 0.9rem;
+            border: none;
+            border-radius: var(--radius);
+            background: var(--primary);
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 1.5rem;
+        }
+        .btn:hover:not(:disabled) { background: var(--primary-hover); transform: translateY(-1px); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn.loading {
+            background: var(--card);
+            color: var(--text-dim);
+            cursor: wait;
+        }
+        .btn.loading::after {
+            content: '';
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2px solid var(--text-dim);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Result */
+        .result {
+            display: none;
+            background: var(--surface);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+        .result.visible { display: block; }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--card);
+        }
+        .result-header h3 { font-size: 0.95rem; font-weight: 600; }
+        .result-actions { display: flex; gap: 0.5rem; }
+        .result-actions button {
+            padding: 0.4rem 0.8rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .result-actions button:hover { border-color: var(--primary); background: var(--card); }
+
+        .result-text {
+            padding: 1rem;
+            white-space: pre-wrap;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            max-height: 60vh;
+            overflow-y: auto;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        /* Quality badge */
+        .quality {
+            padding: 0.6rem 1rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            background: var(--card);
+            white-space: pre-line;
+        }
+        .quality .good { color: var(--accent); }
+        .quality .ok { color: var(--warning); }
+        .quality .low { color: var(--danger); }
+
+        /* Error */
+        .error {
+            display: none;
+            padding: 0.8rem 1rem;
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid var(--danger);
+            border-radius: var(--radius);
+            color: var(--danger);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+        .error.visible { display: block; }
+
+        /* Footer */
+        footer {
+            margin-top: auto;
+            padding: 1.5rem;
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+        footer a { color: var(--primary); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        /* Mobile */
+        @media (max-width: 500px) {
+            header h1 { font-size: 1.7rem; }
+            header h1 span.yaz { font-size: 2rem; }
+            .drop-zone { padding: 2rem 1rem; }
+            .container { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><span class="yaz">ⵣ</span>-OCR</h1>
+            <p>Convertir vos documents amazighs en texte numérique</p>
+        </header>
+
+        <!-- Drop zone -->
+        <div class="drop-zone" id="dropZone">
+            <div class="icon">📄</div>
+            <div class="label">Glissez un PDF ou une image ici</div>
+            <div class="hint">ou cliquez pour sélectionner</div>
+        </div>
+        <input type="file" id="fileInput" accept="image/*,.pdf" hidden>
+
+        <!-- Options -->
+        <div class="options">
+            <label><input type="checkbox" id="twoColumns"> Document à 2 colonnes</label>
+        </div>
+
+        <!-- Button -->
+        <button class="btn" id="btnConvert" disabled>Convertir en texte ⵣ</button>
+
+        <!-- Error -->
+        <div class="error" id="errorMsg"></div>
+
+        <!-- Result -->
+        <div class="result" id="result">
+            <div class="result-header">
+                <h3>Texte reconnu</h3>
+                <div class="result-actions">
+                    <button onclick="copyText()">📋 Copier</button>
+                    <button onclick="downloadText()">💾 Télécharger</button>
+                </div>
+            </div>
+            <div class="result-text" id="resultText"></div>
+            <div class="quality" id="qualityBadge"></div>
+        </div>
+    </div>
+
+    <footer>
+        <a href="/expert">Mode expert</a> · ⵣ-OCR v6.0 · Tamazight latin OCR
+    </footer>
+
+    <script>
+    const $ = id => document.getElementById(id);
+
+    let currentFile = null;
+
+    // Drop zone
+    const dz = $('dropZone');
+    const fi = $('fileInput');
+
+    dz.addEventListener('click', () => fi.click());
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', e => {
+        e.preventDefault();
+        dz.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+    });
+    fi.addEventListener('change', () => { if (fi.files[0]) handleFile(fi.files[0]); });
+
+    function handleFile(file) {
+        const isImage = file.type.startsWith('image/');
+        const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+        if (!isImage && !isPdf) {
+            showError('Format non supporté. Utilisez un PDF ou une image (JPG, PNG, TIFF).');
+            return;
+        }
+        currentFile = file;
+        dz.classList.add('has-file');
+        dz.innerHTML = `<div class="icon">${isPdf ? '📑' : '🖼️'}</div><div class="filename">${file.name}</div><div class="hint">${(file.size / 1024 / 1024).toFixed(1)} Mo · Cliquez pour changer</div>`;
+        $('btnConvert').disabled = false;
+        $('result').classList.remove('visible');
+        $('errorMsg').classList.remove('visible');
+    }
+
+    // Convert
+    $('btnConvert').addEventListener('click', async () => {
+        if (!currentFile) return;
+
+        const btn = $('btnConvert');
+        btn.disabled = true;
+        btn.classList.add('loading');
+        btn.textContent = 'Conversion en cours';
+        $('errorMsg').classList.remove('visible');
+        $('result').classList.remove('visible');
+
+        const columns = $('twoColumns').checked ? 2 : 1;
+        const isPdf = currentFile.name.toLowerCase().endsWith('.pdf');
+
+        try {
+            const formData = new FormData();
+            formData.append('file', currentFile);
+            formData.append('mode', 'hybrid');
+            formData.append('columns', columns);
+            formData.append('preprocess', 'auto');
+            formData.append('psm', '3');
+
+            let url;
+            if (isPdf) {
+                url = '/api/ocr-pdf';
+                formData.append('dpi', '0'); // auto
+                formData.append('pages', 'all');
+            } else {
+                url = '/api/ocr';
+            }
+
+            const resp = await fetch(url, { method: 'POST', body: formData });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.detail || `Erreur ${resp.status}`);
+            }
+
+            const data = await resp.json();
+            const text = data.combined_text || data.text || '';
+
+            if (!text.trim()) {
+                showError('Aucun texte détecté dans le document.');
+                btn.disabled = false;
+                btn.classList.remove('loading');
+                btn.textContent = 'Convertir en texte ⵣ';
+                return;
+            }
+
+            $('resultText').textContent = text;
+
+            // Quality indicator
+            const qb = $('qualityBadge');
+            const sd = data.special_detail;
+            let qualityHtml = '';
+
+            // Special chars count
+            if (sd && sd.detail && sd.total_chars > 0) {
+                const detail = Object.entries(sd.detail).map(([c, n]) => `${c}×${n}`).join('  ');
+                qualityHtml += `ⵣ ${sd.total_chars} caractères amazighs détectés (${sd.total_words} mots)\n${detail}`;
+            } else {
+                qualityHtml += 'Aucun caractère amazigh spécial détecté';
+            }
+
+            // PDF comparison (precision)
+            const pc = data.pdf_comparison;
+            if (pc && pc.has_embedded_text && pc.pdf_special && pc.comparison) {
+                const acc = pc.accuracy;
+                const cls = acc >= 90 ? 'good' : acc >= 70 ? 'ok' : 'low';
+                const label = acc >= 90 ? '🟢 Très bonne' : acc >= 70 ? '🟡 Correcte' : '🔴 À vérifier';
+                qualityHtml += `\nQualité : <span class="${cls}">${label} (${acc}%)</span>`;
+            }
+
+            // DPI rapport (concordance)
+            if (data.dpi_auto && data.dpi_auto.rapport) {
+                const da = data.dpi_auto;
+                const conc = da.concordance;
+                const cls = conc >= 90 ? 'good' : conc >= 70 ? 'ok' : 'low';
+                const label = conc >= 95 ? '🟢 Très bonne' : conc >= 80 ? '🟡 Correcte' : '🔴 À vérifier';
+
+                if (!pc || !pc.has_embedded_text) {
+                    qualityHtml += `\nQualité estimée : <span class="${cls}">${label} (${conc}%)</span>`;
+                }
+
+                // Per-char rapport
+                const details = Object.entries(da.rapport)
+                    .map(([c, v]) => {
+                        const icon = v.ratio === 1 ? '✅' : v.ratio >= 0.8 ? '⚠️' : '❌';
+                        return `${c}:${v.n150}/${v.n300}${icon}`;
+                    }).join('  ');
+                qualityHtml += `\n150/300 DPI : ${details}`;
+            }
+
+            if (isPdf && data.pages_processed) {
+                qualityHtml += `\n${data.pages_processed} page(s) · ${data.dpi} DPI`;
+            }
+
+            qb.innerHTML = qualityHtml;
+            $('result').classList.add('visible');
+
+        } catch (e) {
+            showError(e.message);
+        }
+
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btn.textContent = 'Convertir en texte ⵣ';
+    });
+
+    function showError(msg) {
+        $('errorMsg').textContent = msg;
+        $('errorMsg').classList.add('visible');
+    }
+
+    function copyText() {
+        const text = $('resultText').textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = event.target;
+            const orig = btn.textContent;
+            btn.textContent = '✅ Copié';
+            setTimeout(() => btn.textContent = orig, 1500);
+        });
+    }
+
+    function downloadText() {
+        const text = $('resultText').textContent;
+        const name = currentFile ? currentFile.name.replace(/\.[^.]+$/, '') + '.txt' : 'texte.txt';
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+    </script>
+</body>
+</html>

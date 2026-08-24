@@ -343,13 +343,23 @@ def hybrid_ocr(image, config: str = "--psm 3") -> dict:
 # ── Routes API ─────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
-async def serve_frontend():
-    """Sert la page web du frontend."""
-    index_path = os.path.join(STATIC_DIR, "index.html")
-    if os.path.exists(index_path):
-        with open(index_path, "r", encoding="utf-8") as f:
+async def serve_simple():
+    """ⵣ-OCR — Interface simplifiée pour les utilisateurs."""
+    path = os.path.join(STATIC_DIR, "simple.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
-    return HTMLResponse(content="<h1>ⵣ Tamazight OCR API</h1><p>Frontend non trouvé. Utilisez POST /api/ocr</p>")
+    return HTMLResponse(content="<h1>ⵣ-OCR</h1><p>Interface non trouvée.</p>")
+
+
+@app.get("/expert", response_class=HTMLResponse)
+async def serve_expert():
+    """Interface complète avec toutes les options (mode expert)."""
+    path = os.path.join(STATIC_DIR, "index.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h1>ⵣ-OCR Expert</h1><p>Interface non trouvée.</p>")
 
 
 @app.get("/api/health")
