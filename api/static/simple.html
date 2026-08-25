@@ -183,18 +183,47 @@
             font-family: 'Segoe UI', sans-serif;
         }
 
-        /* Quality badge */
-        .quality {
-            padding: 0.6rem 1rem;
+        /* Quality panel */
+        .quality-panel {
             border-top: 1px solid var(--border);
+            padding: 0.8rem 1rem;
+            background: var(--card);
+            display: none;
+        }
+        .quality-panel.visible { display: block; }
+        .quality-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+        }
+        .quality-row + .quality-row { border-top: 1px solid var(--border); }
+        .quality-label {
             font-size: 0.85rem;
             color: var(--text-dim);
-            background: var(--card);
-            white-space: pre-line;
         }
-        .quality .good { color: var(--accent); }
-        .quality .ok { color: var(--warning); }
-        .quality .low { color: var(--danger); }
+        .quality-value {
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+        .quality-method {
+            font-size: 0.75rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            background: var(--surface);
+            color: var(--text-dim);
+            border: 1px solid var(--border);
+            margin-left: 0.5rem;
+        }
+        .good { color: var(--accent); }
+        .ok { color: var(--warning); }
+        .low { color: var(--danger); }
+        .quality-meta {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            padding-top: 0.4rem;
+            text-align: right;
+        }
 
         /* Error */
         .error {
@@ -265,7 +294,7 @@
                 </div>
             </div>
             <div class="result-text" id="resultText"></div>
-            <div class="quality" id="qualityBadge"></div>
+            <div class="quality-panel" id="qualityPanel"></div>
         </div>
     </div>
 
@@ -358,43 +387,87 @@
 
             $('resultText').textContent = text;
 
-            // Quality indicator
-            const qb = $('qualityBadge');
+            // ── Build quality panel ──
+            const qp = $('qualityPanel');
+            let rows = '';
+
+            // 1. Qualité globale (caractères latins)
+            const conf = data.avg_confidence;
+            if (conf !== undefined) {
+                const cls = conf >= 80 ? 'good' : conf >= 60 ? 'ok' : 'low';
+                rows += `<div class="quality-row">
+                    <span class="quality-label">Qualité caractères latins</span>
+                    <span class="quality-value ${cls}">${conf}%</span>
+                </div>`;
+            }
+
+            // 2. Qualité amazighe ⵣ
             const sd = data.special_detail;
-            let qualityHtml = '';
-
-            // Special chars count
-            if (sd && sd.detail && sd.total_chars > 0) {
-                qualityHtml += `ⵣ ${sd.total_chars} caractères amazighs détectés (${sd.total_words} mots)`;
-            } else {
-                qualityHtml += 'Aucun caractère amazigh spécial détecté';
-            }
-
-            // Précision réelle (PDF avec texte intégré)
             const pc = data.pdf_comparison;
-            if (pc && pc.has_embedded_text && pc.pdf_special && pc.comparison) {
-                const acc = pc.accuracy;
-                const cls = acc >= 90 ? 'good' : acc >= 70 ? 'ok' : 'low';
-                const label = acc >= 90 ? '🟢 Très bonne' : acc >= 70 ? '🟡 Correcte' : '🔴 À vérifier';
-                qualityHtml += `\nQualité : <span class="${cls}">${label} (${acc}%)</span>`;
-            }
+            const da = data.dpi_auto;
+            const hasPdfText = pc && pc.has_embedded_text && pc.pdf_special && pc.comparison;
 
-            // Taux de confiance ⵣ = 1 - |S1-S2| / (S1+S2)
-            if (data.dpi_auto && data.dpi_auto.taux !== undefined) {
-                const taux = data.dpi_auto.taux;
-                const cls = taux >= 90 ? 'good' : taux >= 70 ? 'ok' : 'low';
-                const label = taux >= 95 ? '🟢 Très bonne' : taux >= 80 ? '🟡 Correcte' : '🔴 À vérifier';
+            if (sd && sd.detail && sd.total_chars > 0) {
+                // Détail des caractères trouvés
+                const charDetail = Object.entries(sd.detail).map(([c, n]) => `${c}×${n}`).join('  ');
 
-                if (!pc || !pc.has_embedded_text) {
-                    qualityHtml += `\nConfiance ⵣ : <span class="${cls}">${label} (${taux}%)</span>`;
+                if (hasPdfText) {
+                    // ── Comparaison OCR ⇄ PDF ──
+                    const acc = pc.accuracy;
+                    const cls = acc >= 90 ? 'good' : acc >= 70 ? 'ok' : 'low';
+                    rows += `<div class="quality-row">
+                        <span class="quality-label">Qualité caractères amazighs ⵣ</span>
+                        <span class="quality-value"><span class="${cls}">${acc}%</span><span class="quality-method">OCR ⇄ PDF</span></span>
+                    </div>`;
+
+                    // Détail OCR vs PDF
+                    const pdfDetail = Object.entries(pc.pdf_special.detail).map(([c, n]) => `${c}×${n}`).join('  ');
+                    const diffs = Object.entries(pc.comparison)
+                        .filter(([c, v]) => v.diff !== 0)
+                        .map(([c, v]) => `${c}: ${v.found}/${v.expected}`)
+                        .join(', ');
+                    rows += `<div class="quality-row" style="flex-direction:column;align-items:flex-start;gap:0.3rem;">
+                        <span class="quality-label">OCR : ${sd.total_chars} car. — ${charDetail}</span>
+                        <span class="quality-label">PDF : ${pc.pdf_special.total_chars} car. — ${pdfDetail}</span>
+                        ${diffs ? `<span class="quality-label low">Écarts : ${diffs}</span>` : '<span class="quality-label good">Aucun écart ✅</span>'}
+                    </div>`;
+
+                } else if (da && da.taux !== undefined) {
+                    // ── Comparaison OCR 150 ⇄ 300 ──
+                    const taux = da.taux;
+                    const cls = taux >= 95 ? 'good' : taux >= 80 ? 'ok' : 'low';
+                    rows += `<div class="quality-row">
+                        <span class="quality-label">Qualité caractères amazighs ⵣ</span>
+                        <span class="quality-value"><span class="${cls}">${taux}%</span><span class="quality-method">OCR 150 ⇄ 300</span></span>
+                    </div>`;
+                    rows += `<div class="quality-row" style="flex-direction:column;align-items:flex-start;gap:0.3rem;">
+                        <span class="quality-label">150 DPI : ${da.n150_total} car. — 300 DPI : ${da.n300_total} car.</span>
+                        <span class="quality-label">${charDetail}</span>
+                    </div>`;
+                } else {
+                    // Pas de comparaison possible
+                    rows += `<div class="quality-row">
+                        <span class="quality-label">Caractères amazighs ⵣ détectés</span>
+                        <span class="quality-value">${sd.total_chars} car. (${sd.total_words} mots)</span>
+                    </div>`;
+                    rows += `<div class="quality-row">
+                        <span class="quality-label">${charDetail}</span>
+                    </div>`;
                 }
+            } else {
+                rows += `<div class="quality-row">
+                    <span class="quality-label">Caractères amazighs ⵣ</span>
+                    <span class="quality-value" style="color:var(--text-dim)">Aucun détecté</span>
+                </div>`;
             }
 
+            // 3. Info pages / DPI
             if (isPdf && data.pages_processed) {
-                qualityHtml += `\n${data.pages_processed} page(s) · ${data.dpi} DPI`;
+                rows += `<div class="quality-meta">${data.pages_processed} page(s) · ${data.dpi} DPI</div>`;
             }
 
-            qb.innerHTML = qualityHtml;
+            qp.innerHTML = rows;
+            qp.classList.add('visible');
             $('result').classList.add('visible');
 
         } catch (e) {
