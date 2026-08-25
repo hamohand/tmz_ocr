@@ -6,11 +6,8 @@ __pycache__/
 .venv/
 venv/
 
-# Ground Truth images (trop volumineuses pour git)
-training/data/tmz_latn-ground-truth/
-
-# Wordlist (généré par script)
-training/data/tmz_latn.wordlist
+# Training (2.3 Go — pas nécessaire pour l'exécution)
+training/
 
 # Fichiers temporaires
 *.tmp
@@ -22,9 +19,6 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
-
-# Tesseract training submodule build artifacts
-training/tesstrain/data/
 
 # Fichiers de test temporaires
 tests/samples/
