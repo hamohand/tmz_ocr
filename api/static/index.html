@@ -669,9 +669,9 @@
     <div class="result" id="result">
         <div class="result-header">
             <h3>Texte reconnu</h3>
-            <span class="confidence" id="confidenceBadge"></span>
         </div>
         <div class="result-text" id="resultText"></div>
+        <div id="qualityPanel" style="border-top:1px solid var(--border-color);padding:0.6rem 1rem;background:var(--bg-input);font-size:0.85rem;display:none"></div>
         <div id="sourcesInfo" style="margin-top:0.6rem;font-size:0.78rem;color:var(--text-muted);display:none"></div>
         <div class="result-actions">
             <button class="btn-action" onclick="copyText()">📋 Copier</button>
@@ -843,49 +843,82 @@ $('btnOcr').addEventListener('click', async () => {
         if (isPdf && data.combined_text) {
             const text = data.combined_text;
             $('resultText').textContent = text;
-            const pagesInfo = data.pages_processed + '/' + data.total_pages + ' pages';
-            const colsInfo = data.columns > 1 ? ' • ' + data.columns + ' col.' : '';
+
+            // ── Build quality panel ──
+            const qp = $('qualityPanel');
+            let rows = '';
+            const pagesInfo = `${data.pages_processed}/${data.total_pages} pages`;
+            const colsInfo = data.columns > 1 ? ` · ${data.columns} col.` : '';
+
+            // 1. Qualité caractères latins
+            const conf = data.avg_confidence;
+            rows += `<div style="display:flex;justify-content:space-between;padding:0.4rem 0">
+                <span style="color:var(--text-muted)">Qualité caractères latins</span>
+                <span style="font-weight:600;color:${conf >= 80 ? 'var(--success)' : conf >= 60 ? 'var(--accent)' : 'var(--error)'}">${conf}%</span>
+            </div>`;
+
+            // 2. Qualité amazighe ⵣ
             const sd = data.special_detail;
-            let specialInfo = '';
-            if (sd && sd.detail && sd.total_chars > 0) {
-                const detail = Object.entries(sd.detail).map(([c, n]) => `${c}×${n}`).join(' ');
-                specialInfo = ' • ⵣ ' + sd.total_chars + ' car. (' + sd.total_words + ' mots) : ' + detail;
-            }
-            // Comparaison PDF vs OCR
-            let compInfo = '';
             const pc = data.pdf_comparison;
-            if (pc && pc.has_embedded_text && pc.pdf_special && pc.pdf_special.detail && pc.comparison) {
-                const pdfDetail = Object.entries(pc.pdf_special.detail).map(([c, n]) => `${c}×${n}`).join(' ');
-                const diffs = Object.entries(pc.comparison)
-                    .filter(([c, v]) => v.diff !== 0)
-                    .map(([c, v]) => `${c}: ${v.found}/${v.expected} (${v.diff > 0 ? '+' : ''}${v.diff})`)
-                    .join(', ');
-                compInfo = `\n📊 PDF: ${pc.pdf_special.total_chars} car. : ${pdfDetail}\n🎯 Précision ⵣ : ${pc.accuracy}%` + (diffs ? ` — Écarts: ${diffs}` : ' — Aucun écart ✅');
-            }
-            // DPI auto info + rapport par lettre
-            let dpiInfo = data.dpi + ' DPI';
-            let rapportInfo = '';
-            if (data.dpi_auto) {
-                const da = data.dpi_auto;
-                dpiInfo = `${da.chosen} DPI ✓ (150:${da.n150_total} / 300:${da.n300_total} car.)`;
-                // Taux global + rapport par lettre ⵣ
-                if (da.rapport) {
-                    const details = Object.entries(da.rapport)
+            const da = data.dpi_auto;
+            const hasPdfText = pc && pc.has_embedded_text && pc.pdf_special && pc.pdf_special.detail && pc.comparison;
+
+            if (sd && sd.detail && sd.total_chars > 0) {
+                const charDetail = Object.entries(sd.detail).map(([c, n]) => `${c}×${n}`).join(' ');
+
+                if (hasPdfText) {
+                    // ── OCR ⇄ PDF ──
+                    const acc = pc.accuracy;
+                    const color = acc >= 90 ? 'var(--success)' : acc >= 70 ? 'var(--accent)' : 'var(--error)';
+                    rows += `<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-top:1px solid var(--border-color)">
+                        <span style="color:var(--text-muted)">Qualité caractères amazighs ⵣ</span>
+                        <span><span style="font-weight:600;color:${color}">${acc}%</span> <span style="font-size:0.75rem;padding:0.1rem 0.4rem;border-radius:4px;background:var(--bg);border:1px solid var(--border-color);color:var(--text-muted)">OCR ⇄ PDF</span></span>
+                    </div>`;
+
+                    const pdfDetail = Object.entries(pc.pdf_special.detail).map(([c, n]) => `${c}×${n}`).join(' ');
+                    const diffs = Object.entries(pc.comparison)
+                        .filter(([c, v]) => v.diff !== 0)
+                        .map(([c, v]) => `${c}: ${v.found}/${v.expected} (${v.diff > 0 ? '+' : ''}${v.diff})`)
+                        .join(', ');
+                    rows += `<div style="padding:0.3rem 0;font-size:0.82rem;border-top:1px solid var(--border-color)">
+                        <div style="color:var(--text-muted)">OCR : ${sd.total_chars} car. — ${charDetail}</div>
+                        <div style="color:var(--text-muted)">PDF : ${pc.pdf_special.total_chars} car. — ${pdfDetail}</div>
+                        <div style="color:${diffs ? 'var(--error)' : 'var(--success)'}">${diffs ? 'Écarts : ' + diffs : 'Aucun écart ✅'}</div>
+                    </div>`;
+
+                } else if (da && da.taux !== undefined) {
+                    // ── OCR 150 ⇄ 300 ──
+                    const taux = da.taux;
+                    const color = taux >= 95 ? 'var(--success)' : taux >= 80 ? 'var(--accent)' : 'var(--error)';
+                    rows += `<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-top:1px solid var(--border-color)">
+                        <span style="color:var(--text-muted)">Qualité caractères amazighs ⵣ</span>
+                        <span><span style="font-weight:600;color:${color}">${taux}%</span> <span style="font-size:0.75rem;padding:0.1rem 0.4rem;border-radius:4px;background:var(--bg);border:1px solid var(--border-color);color:var(--text-muted)">OCR 150 ⇄ 300</span></span>
+                    </div>`;
+
+                    // Rapport par lettre
+                    const rapportDetail = Object.entries(da.rapport)
                         .map(([c, v]) => {
                             const icon = v.taux === 100 ? '✅' : v.taux >= 80 ? '⚠️' : '❌';
-                            return `${c}:${v.n150}/${v.n300}=${v.taux}%${icon}`;
-                        })
-                        .join(' ');
-                    rapportInfo = `\n🔄 Confiance ⵣ : ${da.taux}% — ${details}`;
+                            return `${c}:${v.n150}/${v.n300}${icon}`;
+                        }).join('  ');
+                    rows += `<div style="padding:0.3rem 0;font-size:0.82rem;border-top:1px solid var(--border-color)">
+                        <div style="color:var(--text-muted)">150 DPI : ${da.n150_total} car. — 300 DPI : ${da.n300_total} car.</div>
+                        <div style="color:var(--text-muted)">${rapportDetail}</div>
+                    </div>`;
+                } else {
+                    rows += `<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-top:1px solid var(--border-color)">
+                        <span style="color:var(--text-muted)">Caractères amazighs ⵣ</span>
+                        <span style="font-weight:600">${sd.total_chars} car. (${sd.total_words} mots)</span>
+                    </div>`;
+                    rows += `<div style="padding:0.2rem 0;font-size:0.82rem;color:var(--text-muted)">${charDetail}</div>`;
                 }
             }
-            $('confidenceBadge').textContent = data.avg_confidence + '%' + specialInfo + ' • ' + pagesInfo + colsInfo + ' • ' + dpiInfo;
-            if (compInfo) {
-                $('confidenceBadge').textContent += compInfo;
-            }
-            if (rapportInfo) {
-                $('confidenceBadge').textContent += rapportInfo;
-            }
+
+            // 3. Meta
+            rows += `<div style="text-align:right;padding-top:0.3rem;font-size:0.8rem;color:var(--text-muted);border-top:1px solid var(--border-color)">${pagesInfo}${colsInfo} · ${data.dpi} DPI · ${data.mode}</div>`;
+
+            qp.innerHTML = rows;
+            qp.style.display = '';
             $('result').classList.add('visible');
             btn.disabled = false;
             btn.classList.remove('loading');
@@ -915,21 +948,38 @@ $('btnOcr').addEventListener('click', async () => {
             $('resultText').innerHTML = text ? text : '<span class="empty">Aucun texte détecté dans l\'image</span>';
         }
 
-        // Confidence badge
-        const badge = $('confidenceBadge');
+        // Quality panel (images)
+        const qp = $('qualityPanel');
         if (data.avg_confidence !== undefined) {
             const conf = data.avg_confidence;
+            let rows = '';
+
+            // Qualité caractères latins
+            rows += `<div style="display:flex;justify-content:space-between;padding:0.4rem 0">
+                <span style="color:var(--text-muted)">Qualité caractères latins</span>
+                <span style="font-weight:600;color:${conf >= 80 ? 'var(--success)' : conf >= 60 ? 'var(--accent)' : 'var(--error)'}">${Math.round(conf)}%</span>
+            </div>`;
+
+            // Qualité amazighe ⵣ
             const sd = data.special_detail;
-            let specialInfo = '';
             if (sd && sd.detail && sd.total_chars > 0) {
-                const detail = Object.entries(sd.detail).map(([c, n]) => `${c}×${n}`).join(' ');
-                specialInfo = ` • ⵣ ${sd.total_chars} car. (${sd.total_words} mots) : ${detail}`;
+                const charDetail = Object.entries(sd.detail).map(([c, n]) => `${c}×${n}`).join(' ');
+                const spConf = data.special_confidence;
+                const color = spConf >= 80 ? 'var(--success)' : spConf >= 60 ? 'var(--accent)' : 'var(--error)';
+                rows += `<div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-top:1px solid var(--border-color)">
+                    <span style="color:var(--text-muted)">Caractères amazighs ⵣ</span>
+                    <span style="font-weight:600">${sd.total_chars} car. (${sd.total_words} mots)</span>
+                </div>`;
+                rows += `<div style="padding:0.2rem 0;font-size:0.82rem;color:var(--text-muted)">${charDetail}</div>`;
             }
-            badge.textContent = `${conf.toFixed(0)}% confiance${specialInfo}`;
-            badge.className = 'confidence ' + (conf >= 75 ? 'high' : conf >= 50 ? 'medium' : 'low');
-            badge.style.display = '';
+
+            // Meta
+            rows += `<div style="text-align:right;padding-top:0.3rem;font-size:0.8rem;color:var(--text-muted);border-top:1px solid var(--border-color)">${data.mode || 'tmz_only'}</div>`;
+
+            qp.innerHTML = rows;
+            qp.style.display = '';
         } else {
-            badge.style.display = 'none';
+            qp.style.display = 'none';
         }
 
         // Sources info (mode hybride)
