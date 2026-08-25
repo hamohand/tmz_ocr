@@ -864,24 +864,28 @@ async def perform_pdf_ocr(
         if best["pdf_comparison"]:
             response["pdf_comparison"] = best["pdf_comparison"]
         if other:
-            # Rapport 150/300 par caractère — mesure fine de fiabilité
+            # Similarité de Bray-Curtis : 1 - Σ|V1i-V2i| / Σ(V1i+V2i)
+            # Compare les vecteurs de comptage caractère par caractère
             detail_150 = result_150["special_global"]["detail"]
             detail_300 = result_300["special_global"]["detail"]
             s1 = result_150["special_global"]["total_chars"]
             s2 = result_300["special_global"]["total_chars"]
 
-            # Taux de confiance global : 1 - |S1-S2| / (S1+S2)
-            taux = round((1 - abs(s1 - s2) / (s1 + s2)) * 100, 1) if (s1 + s2) > 0 else 0
-
-            # Rapport par caractère
             all_chars = set(list(detail_150.keys()) + list(detail_300.keys()))
+            sum_diff = 0   # Σ|V1i - V2i|
+            sum_total = 0  # Σ(V1i + V2i)
             rapport = {}
             for c in sorted(all_chars):
                 n150 = detail_150.get(c, 0)
                 n300 = detail_300.get(c, 0)
-                # Taux par lettre : 1 - |n150-n300| / (n150+n300)
+                sum_diff += abs(n150 - n300)
+                sum_total += n150 + n300
+                # Taux par lettre (même formule appliquée à 1 composante)
                 taux_c = round((1 - abs(n150 - n300) / (n150 + n300)) * 100, 1) if (n150 + n300) > 0 else 0
                 rapport[c] = {"n150": n150, "n300": n300, "taux": taux_c}
+
+            # Taux global Bray-Curtis
+            taux = round((1 - sum_diff / sum_total) * 100, 1) if sum_total > 0 else 0
 
             response["dpi_auto"] = {
                 "chosen": chosen_dpi,
