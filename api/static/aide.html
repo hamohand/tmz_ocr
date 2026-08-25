@@ -182,6 +182,8 @@
                 <div class="char-item">ṛ</div>
                 <div class="char-item">č</div>
                 <div class="char-item">ǧ</div>
+                <div class="char-item">ţ</div>
+                <div class="char-item">ʷ</div>
             </div>
         </section>
 
@@ -190,25 +192,37 @@
             <h2>🚀 Installation</h2>
             <p>L'installation se fait une seule fois. Suivez les étapes dans l'ordre.</p>
 
-            <h3>Étape 1 — Installer Python</h3>
-            <p>Python est le moteur de l'application.</p>
+            <h3>Étape 1 — Télécharger Dawaliw-ⵣ-OCR</h3>
             <div class="step">
                 <span class="step-num">1</span>
                 <div class="step-text">
-                    Allez sur <strong>python.org/downloads</strong> et téléchargez Python (version 3.10 ou plus récente).
+                    Allez sur la page du projet :<br>
+                    <strong><a href="https://github.com/hamohand/tmz_ocr" target="_blank" style="color:var(--primary)">github.com/hamohand/tmz_ocr</a></strong>
+                    <br><br>
+                    Cliquez sur le bouton vert <strong>« Code »</strong> puis <strong>« Download ZIP »</strong>.
+                    <br>Décompressez le fichier ZIP à l'endroit de votre choix (par exemple, le Bureau ou Mes Documents).
+                </div>
+            </div>
+
+            <h3>Étape 2 — Installer Python</h3>
+            <p>Python est le moteur de l'application.</p>
+            <div class="step">
+                <span class="step-num">2</span>
+                <div class="step-text">
+                    Allez sur <strong><a href="https://www.python.org/downloads/" target="_blank" style="color:var(--primary)">python.org/downloads</a></strong> et téléchargez Python (version 3.10 ou plus récente).
                 </div>
             </div>
             <div class="step">
-                <span class="step-num">2</span>
+                <span class="step-num">3</span>
                 <div class="step-text">
                     Lancez l'installateur. <strong>⚠️ Cochez la case « Add Python to PATH »</strong> en bas de la fenêtre, puis cliquez sur « Install Now ».
                 </div>
             </div>
 
-            <h3>Étape 2 — Installer Tesseract OCR</h3>
+            <h3>Étape 3 — Installer Tesseract OCR</h3>
             <p>Tesseract est le moteur de reconnaissance de texte.</p>
             <div class="step">
-                <span class="step-num">3</span>
+                <span class="step-num">4</span>
                 <div class="step-text">
                     <strong>Windows :</strong> Téléchargez l'installateur sur
                     <strong>github.com/UB-Mannheim/tesseract/wiki</strong>. Installez avec les options par défaut.
@@ -219,17 +233,11 @@ brew install tesseract              # Mac</pre>
                 </div>
             </div>
 
-            <h3>Étape 3 — Installer Dawaliw-ⵣ-OCR</h3>
-            <div class="step">
-                <span class="step-num">4</span>
-                <div class="step-text">
-                    Téléchargez et décompressez le dossier <strong>Dawaliw-ⵣ-OCR</strong> à l'endroit de votre choix.
-                </div>
-            </div>
+            <h3>Étape 4 — Installer les dépendances</h3>
             <div class="step">
                 <span class="step-num">5</span>
                 <div class="step-text">
-                    Ouvrez un terminal (ou l'Invite de commandes Windows) dans le dossier de l'application, puis tapez :
+                    Ouvrez un terminal (ou l'Invite de commandes Windows) dans le dossier <strong>tmz_ocr</strong> décompressé, puis tapez :
                     <pre>pip install fastapi uvicorn pillow python-multipart pymupdf</pre>
                     Attendez que l'installation se termine.
                 </div>
@@ -310,7 +318,7 @@ brew install tesseract              # Mac</pre>
             <p>Les couleurs indiquent :</p>
             <ul>
                 <li><span style="color:var(--accent)">■ Vert</span> = très bonne qualité (≥ 90%)</li>
-                <li><span style="color:var(--warning)">■ Orange</span> = qualité correcte (70-90%)</li>
+                <li><span style="color:var(--warning)">■ Orange</span> = bonne qualité (70-90%)</li>
                 <li><span style="color:#f87171">■ Rouge</span> = à vérifier (&lt; 70%)</li>
             </ul>
         </section>
