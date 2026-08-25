@@ -44,8 +44,8 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
 # ── App FastAPI ────────────────────────────────────────────────
 app = FastAPI(
-    title="ⵣ Tamazight OCR API",
-    description="API de reconnaissance optique de caractères pour le Tamazight Latin (Kabyle). Modèles : tmz_latn + kab (Bouaziz).",
+    title="Dawaliw-ⵣ-OCR API",
+    description="Reconnaissance optique de caractères pour le Tamazight Latin. Convertir vos documents amazighs en texte numérique.",
     version="6.0.0",
 )
 
@@ -359,7 +359,17 @@ async def serve_expert():
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
-    return HTMLResponse(content="<h1>ⵣ-OCR Expert</h1><p>Interface non trouvée.</p>")
+    return HTMLResponse(content="<h1>Dawaliw-ⵣ-OCR Expert</h1><p>Interface non trouvée.</p>")
+
+
+@app.get("/aide", response_class=HTMLResponse)
+async def serve_aide():
+    """Guide d'installation et d'utilisation."""
+    path = os.path.join(STATIC_DIR, "aide.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h1>Aide</h1><p>Page non trouvée.</p>")
 
 
 @app.get("/api/health")
