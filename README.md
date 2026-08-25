@@ -1,51 +1,113 @@
-# Tamazight OCR Project (tmz_ocr)
+# Dawaliw-ⵣ-OCR
 
-Modèle OCR pour la langue Tamazight (Berbère) basé sur Tesseract 5.5.0.
+Convertir vos documents amazighs en texte numérique.
 
-## 🚀 Performances du Modèle (v4)
+Modèle OCR pour le **Tamazight en écriture latine**, basé sur Tesseract 5.5.0. Reconnaît les 24 caractères spéciaux amazighs : ɣ ḥ ɛ ḍ ẓ ṭ ṣ ṛ č ǧ ţ ʷ (+ majuscules et ᵒ).
 
-Le modèle a été significativement amélioré lors de la Session 4 (9-10 Août 2026).
+## 🚀 Performances du modèle (v6)
 
-| Métrique | v1 | v3 | v4 |
-|----------|----|----|----|
-| BCER (Character Error Rate) | 2.687% | 1.137% | **0.989%** |
-| BWER (Word Error Rate) | 7.488% | 3.420% | **3.000%** |
-| Itérations d'entraînement | 10 000 | 20 000 | 19 000 (best: 5 420) |
-| Taille du corpus | 4 913 paires GT | 13 711 paires GT | 22 523 paires GT |
-| Taille du modèle | - | - | 4.0 MB |
+| Métrique | v1 | v3 | v4 | v6 |
+|----------|----|----|----|----|
+| BCER (taux d'erreur caractère) | 2.687% | 1.137% | 0.989% | **1.505%** |
+| BWER (taux d'erreur mot) | 7.488% | 3.420% | 3.000% | — |
+| Paires GT d'entraînement | 4 913 | 13 711 | 22 523 | **1 187 réelles** |
 
-*Entraînement v4 réalisé en fine-tuning 2nd pass (tmz_latn v3 → v4).*
-*Test sur scans réels : 87.6% de confiance moyenne, surpasse le modèle kab (Bouaziz Ait Driss, intégré pour comparaison - CER 5.08%, WER 15.28%) sur 4 pages sur 6.*
+> **v6** est entraîné sur des **scans réels** (pages du dictionnaire Dallet ancien et récent), contrairement aux versions précédentes qui utilisaient du texte généré synthétiquement. Sur les documents récents en 1 colonne, la précision des caractères amazighs atteint **95-100%**.
 
-*Entraînement v3 réalisé sur le système de fichiers natif WSL (`/home/hamoh/tmz_training/`) pour des performances E/S optimales sur ext4.*
+## 📖 Interface utilisateur — Dawaliw-ⵣ-OCR
 
-## 📂 Corpus et Données
+Une interface simple pour les linguistes et les utilisateurs non-informaticiens :
 
-- **Corpus v4** : 22 524 lignes avec renforcement des caractères spéciaux majuscules (~500 occurrences chacun).
-- **Wordlist** : 78 203 mots uniques intégrés (source: HuggingFace Sifal/Kabyle-French, 115K phrases).
-- **Ground Truth (GT)** : 22 523 images générées avec augmentation des données (bruit Gaussien, rotation, flou, contraste, luminosité, arrière-plans texturés, tailles de polices variables).
-- **Caractères spéciaux pris en charge (22)** : 11 paires min/maj (č/Č, ḍ/Ḍ, ǧ/Ǧ, ḥ/Ḥ, ɣ/Ɣ, ṛ/Ṛ, ṣ/Ṣ, ṭ/Ṭ, ẓ/Ẓ, ɛ/Ɛ, ţ/Ţ).
-  > **Note** : ɛ = Latin Small Letter Open E (U+025B), à ne pas confondre avec le epsilon grec (ε, U+03B5).
-- **Fichiers annexes** : `tmz_latn.punc` (19 caractères), `tmz_latn.numbers` (10 chiffres).
+- **Glissez** un PDF ou une image
+- **Cliquez** sur « Convertir en texte ⵣ »
+- **Copiez** ou **téléchargez** le résultat
 
-## 🛠 Structure du Projet
+### Indicateurs de qualité
 
-- `api/` : API OCR v4.0.0 avec 4 modes (hybride, tmz_only, kab_only, compare), détection Auto-PSM et analyse de précision.
-- `models/` : Contient le modèle entraîné `tmz_latn.traineddata` (v4). Intègre aussi le modèle `kab` de Bouaziz Ait Driss pour comparaison.
-- `training/scripts/` :
-  - Nouveaux scripts v4 : `reinforce_uppercase.py`, `build_wordlist_hf.py`, `build_wordlist.py`, `test_compare.py`.
-  - Scripts existants : `enrich_corpus.py`, `reinforce_cedilla.py`, `reinforce_weak_chars.py`, `download_corpus.py`, `generate_gt.py`.
-- `docs/` : Documentation complète du projet.
+| Indicateur | Source | Description |
+|---|---|---|
+| **Qualité caractères latins** | Tesseract | Fiabilité de la reconnaissance a, b, c... |
+| **Qualité caractères amazighs ⵣ** | OCR ⇄ PDF ou OCR 150 ⇄ 300 | Fiabilité de ɣ, ḥ, ɛ, ḍ... |
+| **Caractères reconnus** | OCR | Liste des lettres amazighes trouvées |
 
-## 💻 API et Interface Web
+- **OCR ⇄ PDF** : comparaison avec le texte intégré du PDF (mesure exacte)
+- **OCR 150 ⇄ 300** : similarité de Bray-Curtis entre 2 résolutions (estimation)
 
-L'API v4.0.0 propose désormais des fonctionnalités avancées :
-- **4 modes OCR** : hybride (`fra+tmz_latn`), `tmz_only`, `kab_only`, et `compare`.
-- **Modèle de comparaison** : Intégration du modèle `kab` (Bouaziz Ait Driss).
-- **Détection Auto-PSM**
-- **Analyse de précision par caractère** (focus sur les signes diacritiques)
-- **Interface Web Dark Mode** : UI modernisée avec support du glisser-déposer.
+### Routes
 
-## 🔧 Utilisation
+| URL | Page |
+|---|---|
+| `/` | Interface simple (Dawaliw-ⵣ-OCR) |
+| `/aide` | Guide d'installation et d'utilisation |
+| `/expert` | Interface complète avec toutes les options |
 
-Voir la documentation dans le dossier `docs/` pour plus de détails sur le workflow et les ressources.
+## 🛠 Installation rapide
+
+```bash
+# 1. Télécharger et décompresser le projet
+# 2. Installer Python 3.10+ (python.org) — cocher "Add to PATH"
+# 3. Installer Tesseract OCR (github.com/UB-Mannheim/tesseract/wiki)
+# 4. Installer les dépendances Python :
+pip install fastapi uvicorn pillow python-multipart pymupdf
+```
+
+## ▶️ Lancement
+
+```bash
+cd tmz_ocr
+python -m uvicorn api.app:app --host 0.0.0.0 --port 8000
+```
+
+Ouvrir **http://localhost:8000** dans un navigateur.
+
+## 📂 Structure du projet
+
+```
+tmz_ocr/
+├── api/
+│   ├── app.py                 # API FastAPI + OCR engine
+│   └── static/
+│       ├── simple.html        # Interface Dawaliw-ⵣ-OCR (utilisateur)
+│       ├── aide.html          # Page d'aide
+│       └── index.html         # Interface expert
+├── models/
+│   ├── tmz_latn.traineddata   # Modèle v6 (tamazight latin)
+│   ├── kab.traineddata        # Modèle kab (Bouaziz Ait Driss)
+│   └── fra.traineddata        # Modèle français (pour le mode hybride)
+├── training/scripts/          # Scripts d'entraînement
+├── docs/                      # Documentation technique
+└── README.md
+```
+
+## 🔧 Architecture OCR
+
+### Mode hybride intelligent (par défaut)
+
+1. **tmz_latn** analyse le document en premier
+2. Les mots contenant des caractères amazighs sont **verrouillés** 🔒
+3. **fra** analyse le même document
+4. Les mots sans caractères amazighs sont remplacés par fra si sa confiance est plus élevée
+
+Cela garantit que les caractères spéciaux ɣ ḥ ɛ ḍ ẓ ṭ ne sont jamais remplacés par des équivalents latins (d, t, s, z...).
+
+### DPI auto (PDF)
+
+Le mode auto essaie 150 et 300 DPI, puis garde le résultat avec la meilleure précision sur les caractères amazighs. La similarité de Bray-Curtis compare les vecteurs de comptage par caractère.
+
+### Normalisation Unicode
+
+- ε (grec U+03B5) → ɛ (latin U+025B)
+- Majuscules → minuscules pour les caractères spéciaux (Ẓ→ẓ, Ḍ→ḍ, etc.)
+
+## 📊 Corpus et données
+
+- **Corpus v6** : 1 187 paires GT réelles (scans Dallet ancien + récent)
+- **Corpus v4** : 22 524 lignes synthétiques avec renforcement des caractères spéciaux
+- **Wordlist** : 78 203 mots uniques (source: HuggingFace Sifal/Kabyle-French)
+- **24 caractères spéciaux** : 11 paires min/maj (č/Č ḍ/Ḍ ǧ/Ǧ ḥ/Ḥ ɣ/Ɣ ṛ/Ṛ ṣ/Ṣ ṭ/Ṭ ẓ/Ẓ ɛ/Ɛ ţ/Ţ) + ʷ (U+02B7) + ᵒ (U+1D52)
+
+> **Note** : ɛ = Latin Small Letter Open E (U+025B), à ne pas confondre avec le epsilon grec (ε, U+03B5).
+
+## 📜 Licence
+
+Projet de recherche pour la digitalisation de l'écriture amazighe en caractères latins.
