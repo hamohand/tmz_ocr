@@ -365,13 +365,12 @@
 
             // Special chars count
             if (sd && sd.detail && sd.total_chars > 0) {
-                const detail = Object.entries(sd.detail).map(([c, n]) => `${c}×${n}`).join('  ');
-                qualityHtml += `ⵣ ${sd.total_chars} caractères amazighs détectés (${sd.total_words} mots)\n${detail}`;
+                qualityHtml += `ⵣ ${sd.total_chars} caractères amazighs détectés (${sd.total_words} mots)`;
             } else {
                 qualityHtml += 'Aucun caractère amazigh spécial détecté';
             }
 
-            // PDF comparison (precision)
+            // Précision réelle (PDF avec texte intégré)
             const pc = data.pdf_comparison;
             if (pc && pc.has_embedded_text && pc.pdf_special && pc.comparison) {
                 const acc = pc.accuracy;
@@ -380,24 +379,15 @@
                 qualityHtml += `\nQualité : <span class="${cls}">${label} (${acc}%)</span>`;
             }
 
-            // DPI rapport (concordance)
-            if (data.dpi_auto && data.dpi_auto.rapport) {
-                const da = data.dpi_auto;
-                const conc = da.concordance;
-                const cls = conc >= 90 ? 'good' : conc >= 70 ? 'ok' : 'low';
-                const label = conc >= 95 ? '🟢 Très bonne' : conc >= 80 ? '🟡 Correcte' : '🔴 À vérifier';
+            // Taux de confiance ⵣ = 1 - |S1-S2| / (S1+S2)
+            if (data.dpi_auto && data.dpi_auto.taux !== undefined) {
+                const taux = data.dpi_auto.taux;
+                const cls = taux >= 90 ? 'good' : taux >= 70 ? 'ok' : 'low';
+                const label = taux >= 95 ? '🟢 Très bonne' : taux >= 80 ? '🟡 Correcte' : '🔴 À vérifier';
 
                 if (!pc || !pc.has_embedded_text) {
-                    qualityHtml += `\nQualité estimée : <span class="${cls}">${label} (${conc}%)</span>`;
+                    qualityHtml += `\nConfiance ⵣ : <span class="${cls}">${label} (${taux}%)</span>`;
                 }
-
-                // Per-char rapport
-                const details = Object.entries(da.rapport)
-                    .map(([c, v]) => {
-                        const icon = v.ratio === 1 ? '✅' : v.ratio >= 0.8 ? '⚠️' : '❌';
-                        return `${c}:${v.n150}/${v.n300}${icon}`;
-                    }).join('  ');
-                qualityHtml += `\n150/300 DPI : ${details}`;
             }
 
             if (isPdf && data.pages_processed) {

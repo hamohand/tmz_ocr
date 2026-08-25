@@ -867,30 +867,30 @@ async def perform_pdf_ocr(
             # Rapport 150/300 par caractère — mesure fine de fiabilité
             detail_150 = result_150["special_global"]["detail"]
             detail_300 = result_300["special_global"]["detail"]
+            s1 = result_150["special_global"]["total_chars"]
+            s2 = result_300["special_global"]["total_chars"]
+
+            # Taux de confiance global : 1 - |S1-S2| / (S1+S2)
+            taux = round((1 - abs(s1 - s2) / (s1 + s2)) * 100, 1) if (s1 + s2) > 0 else 0
+
+            # Rapport par caractère
             all_chars = set(list(detail_150.keys()) + list(detail_300.keys()))
             rapport = {}
-            agreed_total = 0
-            total_max = 0
             for c in sorted(all_chars):
                 n150 = detail_150.get(c, 0)
                 n300 = detail_300.get(c, 0)
-                mx = max(n150, n300)
-                mn = min(n150, n300)
-                agreed_total += mn
-                total_max += mx
-                # Ratio = min/max (1.0 = identique, <1.0 = écart)
-                ratio = round(mn / mx, 2) if mx > 0 else 1.0
-                rapport[c] = {"n150": n150, "n300": n300, "ratio": ratio}
-            concordance = round(agreed_total / total_max * 100, 1) if total_max > 0 else 100
+                # Taux par lettre : 1 - |n150-n300| / (n150+n300)
+                taux_c = round((1 - abs(n150 - n300) / (n150 + n300)) * 100, 1) if (n150 + n300) > 0 else 0
+                rapport[c] = {"n150": n150, "n300": n300, "taux": taux_c}
 
             response["dpi_auto"] = {
                 "chosen": chosen_dpi,
                 "other_dpi": other["dpi"],
-                "n150_total": result_150["special_global"]["total_chars"],
-                "n300_total": result_300["special_global"]["total_chars"],
+                "n150_total": s1,
+                "n300_total": s2,
+                "taux": taux,
                 "acc_150": acc_150,
                 "acc_300": acc_300,
-                "concordance": concordance,
                 "rapport": rapport,
             }
         return JSONResponse(content=response)

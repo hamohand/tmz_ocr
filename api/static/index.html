@@ -868,15 +868,15 @@ $('btnOcr').addEventListener('click', async () => {
             if (data.dpi_auto) {
                 const da = data.dpi_auto;
                 dpiInfo = `${da.chosen} DPI ✓ (150:${da.n150_total} / 300:${da.n300_total} car.)`;
-                // Rapport 150/300 par lettre ⵣ
+                // Taux global + rapport par lettre ⵣ
                 if (da.rapport) {
                     const details = Object.entries(da.rapport)
                         .map(([c, v]) => {
-                            const icon = v.ratio === 1 ? '✅' : v.ratio >= 0.8 ? '⚠️' : '❌';
-                            return `${c}:${v.n150}/${v.n300}${icon}`;
+                            const icon = v.taux === 100 ? '✅' : v.taux >= 80 ? '⚠️' : '❌';
+                            return `${c}:${v.n150}/${v.n300}=${v.taux}%${icon}`;
                         })
                         .join(' ');
-                    rapportInfo = `\n🔄 150/300 DPI (${da.concordance}%) : ${details}`;
+                    rapportInfo = `\n🔄 Confiance ⵣ : ${da.taux}% — ${details}`;
                 }
             }
             $('confidenceBadge').textContent = data.avg_confidence + '%' + specialInfo + ' • ' + pagesInfo + colsInfo + ' • ' + dpiInfo;
