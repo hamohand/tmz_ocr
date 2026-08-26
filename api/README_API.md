@@ -1,15 +1,15 @@
 # Démarrer l'API OCR Tamazight v4.0.0
 
 Ce dossier contient une API autonome pour tester et utiliser votre modèle. Elle inclut 4 modes OCR :
-- `hybride` (`fra` + `tmz_latn`)
+- `hybride` (`fra` + `kab`)
 - `tmz_only`
 - `kab_only` (utilise le modèle de Bouaziz Ait Driss pour l'évaluation)
-- `compare` (compare les résultats de `tmz_latn` et `kab`)
+- `compare` (compare les résultats de `kab` et `kab`)
 
 ## En local (sans Docker)
 
 1. Assurez-vous d'avoir Tesseract installé sur votre machine (`sudo apt install tesseract-ocr`).
-2. Placez vos modèles (`tmz_latn.traineddata` et `kab.traineddata`) dans le dossier `../models/`.
+2. Placez vos modèles (`kab_bouaziz.traineddata` et `kab_bouaziz.traineddata`) dans le dossier `../models/`.
 3. Installez les dépendances :
    ```bash
    pip install -r requirements.txt
@@ -24,7 +24,7 @@ Ce dossier contient une API autonome pour tester et utiliser votre modèle. Elle
 ## Avec Docker
 
 1. Copiez d'abord vos modèles dans le dossier `models/`.
-2. Assurez-vous que les lignes `COPY models/tmz_latn.traineddata /app/models/` et `COPY models/kab.traineddata /app/models/` sont actives dans le fichier `Dockerfile`.
+2. Assurez-vous que les lignes `COPY models/kab_bouaziz.traineddata /app/models/` et `COPY models/kab_bouaziz.traineddata /app/models/` sont actives dans le fichier `Dockerfile`.
 3. Depuis la racine du projet (le dossier `tmz_ocr`), lancez la construction :
    ```bash
    docker build -t tamazight-ocr-api -f api/Dockerfile .

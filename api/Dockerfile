@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN mkdir -p /app/api/static /app/models
 
 # Copier le modèle Tamazight
-COPY models/tmz_latn.traineddata /app/models/
+COPY models/kab_bouaziz.traineddata /app/models/
 
 # Copier le code de l'API et le frontend
 COPY api/ /app/api/

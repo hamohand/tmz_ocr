@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="kab" dir="ltr">
+<html lang="kab_bouaziz" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -576,7 +576,7 @@
 <header class="header">
     <h1><span class="tifinagh">ⵣ</span> Tamazight OCR</h1>
     <p>Reconnaissance de texte amazigh en caractères latins</p>
-    <span class="badge">v6.0 — tmz_latn (1187 vrais scans + Dallet ancien) + kab (Bouaziz) — PDF + 2 colonnes</span>
+    <span class="badge">v6.0 — kab (1187 vrais scans + Dallet ancien) + kab (Bouaziz) — PDF + 2 colonnes</span>
 </header>
 
 <div class="container">
@@ -627,9 +627,9 @@
             <label>Mode OCR</label>
             <select id="ocrMode">
                 <option value="hybrid">Hybride fra+tmz (recommandé)</option>
-                <option value="tmz_only">tmz_latn seul</option>
-                <option value="kab_only">kab Bouaziz seul</option>
-                <option value="compare">⚔️ Comparer tmz_latn vs kab</option>
+                <option value="kab_only">kab seul</option>
+                <option value="kab_bouaziz_only">kab_bouaziz seul</option>
+                <option value="compare">⚔️ Comparer kab vs kab</option>
             </select>
         </div>
         <div class="option-group">
@@ -705,7 +705,7 @@
 
 <footer class="footer">
     <p>ⵣ Tamazight OCR — Modèle entraîné sur 4 913 phrases Kabyle (Tatoeba)<br>
-    Propulsé par Tesseract 5 • FastAPI • tmz_latn.traineddata</p>
+    Propulsé par Tesseract 5 • FastAPI • kab.traineddata</p>
 </footer>
 
 <div class="toast" id="toast"></div>
@@ -724,18 +724,18 @@ window.addEventListener('DOMContentLoaded', async () => {
         const dot = $('statusDot');
         const text = $('statusText');
 
-        const tmzExists = data.models && data.models.tmz_latn && data.models.tmz_latn.exists;
+        const tmzExists = data.models && data.models.kab && data.models.kab.exists;
         const kabExists = data.models && data.models.kab && data.models.kab.exists;
-        const tmzSize = tmzExists ? data.models.tmz_latn.size_mb : 0;
+        const tmzSize = tmzExists ? data.models.kab.size_mb : 0;
 
         if (tmzExists) {
             dot.classList.add('online');
-            let msg = `tmz_latn (${tmzSize} Mo)`;
+            let msg = `kab (${tmzSize} Mo)`;
             if (kabExists) msg += ` + kab (${data.models.kab.size_mb} Mo)`;
             text.textContent = `${msg} — Tesseract ${data.tesseract_version}`;
         } else {
             dot.classList.add('error');
-            text.textContent = 'Modèle tmz_latn.traineddata non trouvé !';
+            text.textContent = 'Modèle kab.traineddata non trouvé !';
         }
     } catch (e) {
         $('statusDot').classList.add('error');
@@ -927,19 +927,19 @@ $('btnOcr').addEventListener('click', async () => {
 
         // Mode comparaison : affichage côte à côte
         if (data.mode === 'compare') {
-            const tmzText = data.tmz_latn?.text || '';
             const kabText = data.kab?.text || '';
-            const tmzConf = data.tmz_latn?.avg_confidence?.toFixed(0) || '?';
+            const kabBouazizText = data.kab_bouaziz?.text || '';
             const kabConf = data.kab?.avg_confidence?.toFixed(0) || '?';
+            const kabBouazizConf = data.kab_bouaziz?.avg_confidence?.toFixed(0) || '?';
             $('resultText').innerHTML = `
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
                     <div style="padding:1rem;background:var(--bg-input);border-radius:8px;border:1px solid var(--primary);">
-                        <div style="font-weight:600;color:var(--primary-light);margin-bottom:0.5rem;">📗 tmz_latn <span style="font-size:0.8rem;opacity:0.7;">(${tmzConf}% conf.)</span></div>
-                        <div style="white-space:pre-wrap;font-size:0.95rem;">${tmzText || '<em style="opacity:0.5">Aucun texte</em>'}</div>
+                        <div style="font-weight:600;color:var(--primary-light);margin-bottom:0.5rem;">📗 kab <span style="font-size:0.8rem;opacity:0.7;">(${kabConf}% conf.)</span></div>
+                        <div style="white-space:pre-wrap;font-size:0.95rem;">${kabText || '<em style="opacity:0.5">Aucun texte</em>'}</div>
                     </div>
                     <div style="padding:1rem;background:var(--bg-input);border-radius:8px;border:1px solid var(--accent);">
-                        <div style="font-weight:600;color:var(--accent-light);margin-bottom:0.5rem;">📘 kab Bouaziz <span style="font-size:0.8rem;opacity:0.7;">(${kabConf}% conf.)</span></div>
-                        <div style="white-space:pre-wrap;font-size:0.95rem;">${kabText || '<em style="opacity:0.5">Aucun texte</em>'}</div>
+                        <div style="font-weight:600;color:var(--accent-light);margin-bottom:0.5rem;">📘 kab_bouaziz <span style="font-size:0.8rem;opacity:0.7;">(${kabBouazizConf}% conf.)</span></div>
+                        <div style="white-space:pre-wrap;font-size:0.95rem;">${kabBouazizText || '<em style="opacity:0.5">Aucun texte</em>'}</div>
                     </div>
                 </div>
             `;
@@ -974,7 +974,7 @@ $('btnOcr').addEventListener('click', async () => {
             }
 
             // Meta
-            rows += `<div style="text-align:right;padding-top:0.3rem;font-size:0.8rem;color:var(--text-muted);border-top:1px solid var(--border-color)">${data.mode || 'tmz_only'}</div>`;
+            rows += `<div style="text-align:right;padding-top:0.3rem;font-size:0.8rem;color:var(--text-muted);border-top:1px solid var(--border-color)">${data.mode || 'kab_only'}</div>`;
 
             qp.innerHTML = rows;
             qp.style.display = '';
@@ -986,10 +986,10 @@ $('btnOcr').addEventListener('click', async () => {
         const srcInfo = $('sourcesInfo');
         if (data.sources) {
             const s = data.sources;
-            const locked = s['tmz_latn🔒'] || 0;
-            const tmz = s['tmz_latn'] || 0;
+            const locked = s['kab🔒'] || 0;
+            const tmz = s['kab'] || 0;
             const fra = s['fra'] || 0;
-            srcInfo.innerHTML = `Hybride — 🔒 <b>${locked}</b> mots verrouillés (car. spéciaux), <b>${fra}</b> substitués par fra, <b>${tmz}</b> tmz_latn standard`;
+            srcInfo.innerHTML = `Hybride — 🔒 <b>${locked}</b> mots verrouillés (car. spéciaux), <b>${fra}</b> substitués par fra, <b>${tmz}</b> kab standard`;
             srcInfo.style.display = '';
         } else {
             srcInfo.style.display = 'none';

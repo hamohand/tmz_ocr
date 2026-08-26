@@ -1,14 +1,14 @@
 """
 Tamazight OCR API — API dédiée à la reconnaissance de texte Tamazight Latin
 Modèles disponibles :
-  - tmz_latn.traineddata : notre modèle v5 (BCER 1.271%, 23 607 GT dont 548 vrais scans, wordlist 78K, support ʷ/ᵒ)
-  - kab.traineddata : modèle Kabyle de Bouaziz Ait Driss (BCER 2.9%, 26 000 itérations)
+  - kab.traineddata : notre modèle v5 (BCER 1.271%, 23 607 GT dont 548 vrais scans, wordlist 78K, support ʷ/ᵒ)
+  - kab_bouaziz.traineddata : modèle Kabyle de Bouaziz Ait Driss (BCER 2.9%, 26 000 itérations)
 
 Modes OCR :
-  - hybrid : combine fra + tmz_latn (recommandé)
-  - tmz_only : tmz_latn seul
+  - hybrid : combine fra + kab (recommandé)
   - kab_only : kab seul
-  - compare : exécute tmz_latn ET kab côte à côte pour comparer
+  - kab_bouaziz_only : kab seul
+  - compare : exécute kab ET kab côte à côte pour comparer
 """
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.staticfiles import StaticFiles
@@ -210,13 +210,13 @@ def count_special_chars(text: str) -> dict:
 def hybrid_ocr(image, config: str = "--psm 3") -> dict:
     """
     OCR hybride intelligent :
-    1. Lancer tmz_latn → verrouiller les mots avec caractères spéciaux
+    1. Lancer kab → verrouiller les mots avec caractères spéciaux
     2. Lancer fra → substituer les mots SANS caractères spéciaux si fra a une meilleure confiance
     Matching par position spatiale (block, par, ligne, position x).
     """
-    # 1. Passe tmz_latn (primaire)
+    # 1. Passe kab (primaire)
     data_tmz = pytesseract.image_to_data(
-        image, lang="tmz_latn", config=config, output_type=pytesseract.Output.DICT
+        image, lang="kab", config=config, output_type=pytesseract.Output.DICT
     )
 
     # 2. Passe fra (secondaire)
@@ -246,7 +246,7 @@ def hybrid_ocr(image, config: str = "--psm 3") -> dict:
                 "w": data_fra["width"][i],
             })
 
-    # 4. Parcourir tmz_latn et substituer si pertinent
+    # 4. Parcourir kab et substituer si pertinent
     words_result = []
     lines = {}
 
@@ -264,11 +264,11 @@ def hybrid_ocr(image, config: str = "--psm 3") -> dict:
 
         chosen_word = word_tmz
         chosen_conf = conf_tmz
-        chosen_source = "tmz_latn"
+        chosen_source = "kab"
 
         if has_tamazight_chars(word_tmz):
-            # 🔒 Verrouillé : contient des caractères spéciaux → garder tmz_latn
-            chosen_source = "tmz_latn🔒"
+            # 🔒 Verrouillé : contient des caractères spéciaux → garder kab
+            chosen_source = "kab🔒"
         elif has_fra and fra_lines:
             # Chercher le mot fra correspondant par position spatiale
             key = (block, par, line_num)
@@ -375,13 +375,13 @@ async def serve_aide():
 @app.get("/api/health")
 async def health_check():
     """Vérifie que l'API et le modèle sont fonctionnels."""
-    model_path = os.path.join(MODELS_DIR, "tmz_latn.traineddata")
+    model_path = os.path.join(MODELS_DIR, "kab.traineddata")
     model_exists = os.path.exists(model_path)
     model_size = os.path.getsize(model_path) if model_exists else 0
 
-    kab_path = os.path.join(MODELS_DIR, "kab.traineddata")
-    kab_exists = os.path.exists(kab_path)
-    kab_size = os.path.getsize(kab_path) if kab_exists else 0
+    kab_bouaziz_path = os.path.join(MODELS_DIR, "kab_bouaziz.traineddata")
+    kab_bouaziz_exists = os.path.exists(kab_bouaziz_path)
+    kab_bouaziz_size = os.path.getsize(kab_bouaziz_path) if kab_bouaziz_exists else 0
 
     try:
         tesseract_version = pytesseract.get_tesseract_version()
@@ -391,13 +391,13 @@ async def health_check():
     return {
         "status": "ok" if model_exists else "error",
         "models": {
-            "tmz_latn": {
+            "kab": {
                 "exists": model_exists,
                 "size_mb": round(model_size / 1024 / 1024, 2),
             },
-            "kab": {
-                "exists": kab_exists,
-                "size_mb": round(kab_size / 1024 / 1024, 2),
+            "kab_bouaziz": {
+                "exists": kab_bouaziz_exists,
+                "size_mb": round(kab_bouaziz_size / 1024 / 1024, 2),
                 "source": "Bouaziz Ait Driss (GitHub)",
             },
         },
@@ -423,7 +423,7 @@ async def perform_ocr(
     - **preprocess**: Mode de prétraitement (`auto`, `raw`, `binarize`)
     - **psm**: Page Segmentation Mode de Tesseract (3=auto, 6=bloc, 7=ligne, 13=ligne brute)
     - **confidence**: Si true, retourne aussi les scores de confiance par mot
-    - **mode**: `hybrid` (fra+tmz_latn, recommandé), `tmz_only` (tmz_latn seul), `kab_only` (kab Bouaziz seul), `compare` (tmz_latn vs kab côte à côte)
+    - **mode**: `hybrid` (fra+kab, recommandé), `kab_only` (kab seul), `kab_bouaziz_only` (kab_bouaziz seul), `compare` (kab vs kab côte à côte)
     - **columns**: Nombre de colonnes (1=normal, 2=dictionnaire/lexique)
     """
     if not file.content_type or not file.content_type.startswith("image/"):
@@ -446,13 +446,13 @@ async def perform_ocr(
                 ocr_mode = mode or "hybrid"
                 if ocr_mode == "hybrid":
                     col_result = hybrid_ocr(col_processed, config=col_config)
-                elif ocr_mode == "kab_only":
-                    col_data = pytesseract.image_to_data(col_processed, lang="kab", config=col_config, output_type=pytesseract.Output.DICT)
+                elif ocr_mode == "kab_bouaziz_only":
+                    col_data = pytesseract.image_to_data(col_processed, lang="kab_bouaziz", config=col_config, output_type=pytesseract.Output.DICT)
                     col_words = [col_data["text"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip()]
                     col_confs_list = [col_data["conf"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip() and col_data["conf"][i] > 0]
                     col_result = {"text": " ".join(col_words), "avg_confidence": sum(col_confs_list) / len(col_confs_list) if col_confs_list else 0}
-                else:  # tmz_only ou fallback
-                    col_data = pytesseract.image_to_data(col_processed, lang="tmz_latn", config=col_config, output_type=pytesseract.Output.DICT)
+                else:  # kab_only ou fallback
+                    col_data = pytesseract.image_to_data(col_processed, lang="kab", config=col_config, output_type=pytesseract.Output.DICT)
                     col_words = [col_data["text"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip()]
                     col_confs_list = [col_data["conf"][i] for i in range(len(col_data["text"])) if col_data["text"][i].strip() and col_data["conf"][i] > 0]
                     col_result = {"text": " ".join(col_words), "avg_confidence": sum(col_confs_list) / len(col_confs_list) if col_confs_list else 0}
@@ -481,7 +481,7 @@ async def perform_ocr(
         ocr_mode = mode or "hybrid"
 
         if ocr_mode == "hybrid":
-            # Mode hybride : fra (lettres latines) + tmz_latn (caractères spéciaux)
+            # Mode hybride : fra (lettres latines) + kab (caractères spéciaux)
             hybrid_result = hybrid_ocr(processed, config=config)
             result = {
                 "mode": "hybrid",
@@ -499,32 +499,32 @@ async def perform_ocr(
                 result["words"] = hybrid_result["words"]
 
         elif ocr_mode == "compare":
-            # Mode comparaison : exécuter tmz_latn ET kab côte à côte
-            text_tmz = pytesseract.image_to_string(processed, lang="tmz_latn", config=config)
+            # Mode comparaison : exécuter kab ET kab côte à côte
+            text_tmz = pytesseract.image_to_string(processed, lang="kab", config=config)
             data_tmz = pytesseract.image_to_data(
-                processed, lang="tmz_latn", config=config, output_type=pytesseract.Output.DICT
+                processed, lang="kab", config=config, output_type=pytesseract.Output.DICT
             )
             tmz_words = [w for w in data_tmz["text"] if w.strip()]
             tmz_confs = [data_tmz["conf"][i] for i, w in enumerate(data_tmz["text"]) if w.strip()]
 
-            text_kab = pytesseract.image_to_string(processed, lang="kab", config=config)
-            data_kab = pytesseract.image_to_data(
-                processed, lang="kab", config=config, output_type=pytesseract.Output.DICT
+            text_kab_bouaziz = pytesseract.image_to_string(processed, lang="kab_bouaziz", config=config)
+            data_kab_bouaziz = pytesseract.image_to_data(
+                processed, lang="kab_bouaziz", config=config, output_type=pytesseract.Output.DICT
             )
-            kab_words = [w for w in data_kab["text"] if w.strip()]
-            kab_confs = [data_kab["conf"][i] for i, w in enumerate(data_kab["text"]) if w.strip()]
+            kab_bouaziz_words = [w for w in data_kab_bouaziz["text"] if w.strip()]
+            kab_bouaziz_confs = [data_kab_bouaziz["conf"][i] for i, w in enumerate(data_kab_bouaziz["text"]) if w.strip()]
 
             result = {
                 "mode": "compare",
-                "tmz_latn": {
+                "kab": {
                     "text": text_tmz.strip(),
                     "avg_confidence": round(sum(tmz_confs) / len(tmz_confs), 1) if tmz_confs else 0,
                     "word_count": len(tmz_words),
                 },
-                "kab": {
-                    "text": text_kab.strip(),
-                    "avg_confidence": round(sum(kab_confs) / len(kab_confs), 1) if kab_confs else 0,
-                    "word_count": len(kab_words),
+                "kab_bouaziz": {
+                    "text": text_kab_bouaziz.strip(),
+                    "avg_confidence": round(sum(kab_bouaziz_confs) / len(kab_bouaziz_confs), 1) if kab_bouaziz_confs else 0,
+                    "word_count": len(kab_bouaziz_words),
                 },
                 "filename": file.filename,
                 "image_size": {"width": image.size[0], "height": image.size[1]},
@@ -533,11 +533,11 @@ async def perform_ocr(
                 "timestamp": datetime.now().isoformat(),
             }
 
-        elif ocr_mode == "kab_only":
+        elif ocr_mode == "kab_bouaziz_only":
             # Mode kab seul (modèle Bouaziz Ait Driss)
-            text = pytesseract.image_to_string(processed, lang="kab", config=config)
+            text = pytesseract.image_to_string(processed, lang="kab_bouaziz", config=config)
             result = {
-                "mode": "kab_only",
+                "mode": "kab_bouaziz_only",
                 "text": text.strip(),
                 "filename": file.filename,
                 "image_size": {"width": image.size[0], "height": image.size[1]},
@@ -546,7 +546,7 @@ async def perform_ocr(
                 "timestamp": datetime.now().isoformat(),
             }
             if confidence:
-                data = pytesseract.image_to_data(processed, lang="kab", config=config, output_type=pytesseract.Output.DICT)
+                data = pytesseract.image_to_data(processed, lang="kab_bouaziz", config=config, output_type=pytesseract.Output.DICT)
                 words = []
                 for i, word in enumerate(data["text"]):
                     if word.strip():
@@ -563,10 +563,10 @@ async def perform_ocr(
                     result["avg_confidence"] = round(sum(w["confidence"] for w in words) / len(words), 1)
 
         else:
-            # Mode tmz_latn seul
-            text = pytesseract.image_to_string(processed, lang="tmz_latn", config=config)
+            # Mode kab seul
+            text = pytesseract.image_to_string(processed, lang="kab", config=config)
             result = {
-                "mode": "tmz_only",
+                "mode": "kab_only",
                 "text": text.strip(),
                 "filename": file.filename,
                 "image_size": {"width": image.size[0], "height": image.size[1]},
@@ -575,7 +575,7 @@ async def perform_ocr(
                 "timestamp": datetime.now().isoformat(),
             }
             if confidence:
-                data = pytesseract.image_to_data(processed, lang="tmz_latn", config=config, output_type=pytesseract.Output.DICT)
+                data = pytesseract.image_to_data(processed, lang="kab", config=config, output_type=pytesseract.Output.DICT)
                 words = []
                 for i, word in enumerate(data["text"]):
                     if word.strip():
@@ -596,7 +596,7 @@ async def perform_ocr(
     except pytesseract.TesseractError as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Erreur Tesseract: {str(e)}. Vérifiez que tmz_latn.traineddata est dans {MODELS_DIR}",
+            detail=f"Erreur Tesseract: {str(e)}. Vérifiez que kab.traineddata est dans {MODELS_DIR}",
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
@@ -634,10 +634,10 @@ def ocr_single_image(image: Image.Image, preprocess_mode: str, psm: int, mode: s
             col_config = f"--psm {col_psm}"
             if mode == "hybrid":
                 col_result = hybrid_ocr(col_processed, config=col_config)
-            elif mode == "kab_only":
-                col_result = _single_lang_ocr(col_processed, "kab", col_config)
+            elif mode == "kab_bouaziz_only":
+                col_result = _single_lang_ocr(col_processed, "kab_bouaziz", col_config)
             else:
-                col_result = _single_lang_ocr(col_processed, "tmz_latn", col_config)
+                col_result = _single_lang_ocr(col_processed, "kab", col_config)
             all_texts.append(col_result["text"])
             all_confs.append(col_result.get("avg_confidence", 0))
             all_special_confs.append(col_result.get("special_confidence", 0))
@@ -660,7 +660,7 @@ def ocr_single_image(image: Image.Image, preprocess_mode: str, psm: int, mode: s
             result = hybrid_ocr(processed, config=config)
             return {"text": result["text"], "avg_confidence": result["avg_confidence"], "special_confidence": result.get("special_confidence", 0), "special_count": result.get("special_count", 0), "special_detail": result.get("special_detail", {})}
         else:
-            lang = "kab" if mode == "kab_only" else "tmz_latn"
+            lang = "kab_bouaziz" if mode == "kab_bouaziz_only" else "kab"
             return _single_lang_ocr(processed, lang, config)
 
 
@@ -680,7 +680,7 @@ async def perform_pdf_ocr(
     - **file**: Fichier PDF
     - **preprocess**: Mode de prétraitement (`auto`, `raw`, `binarize`)
     - **psm**: Page Segmentation Mode (3=auto)
-    - **mode**: `hybrid`, `tmz_only`, `kab_only`
+    - **mode**: `hybrid`, `kab_only`, `kab_bouaziz_only`
     - **columns**: Nombre de colonnes (1=normal, 2=dictionnaire)
     - **pages**: Pages à traiter (`all`, `1-5`, `3,7,12`, `5`)
     - **dpi**: Résolution (0=auto 150+300, ou 150/300 fixe)
@@ -930,7 +930,7 @@ async def perform_batch_ocr(
             content = await file.read()
             image = Image.open(io.BytesIO(content))
             processed = preprocess_image(image, mode=preprocess or "auto")
-            text = pytesseract.image_to_string(processed, lang="tmz_latn")
+            text = pytesseract.image_to_string(processed, lang="kab")
             results.append({
                 "filename": file.filename,
                 "text": text.strip(),
