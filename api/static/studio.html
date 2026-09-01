@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dawaliw-ⵣ-Studio — Créateur de Ground Truth</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --card: #222533;
+            --border: #2d3148;
+            --text: #e4e6f0;
+            --primary: #4f8cff;
+            --accent: #34d399;
+            --radius: 8px;
+        }
+        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 2rem; }
+        .container { max-width: 900px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 2rem; }
+        h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+        h1 span { color: var(--accent); }
+        .box { background: var(--surface); border: 2px dashed var(--border); padding: 2rem; text-align: center; border-radius: var(--radius); cursor: pointer; margin-bottom: 1rem; }
+        .box:hover { border-color: var(--primary); }
+        
+        .setup-bar { display: flex; gap: 1rem; margin-bottom: 1.5rem; background: var(--surface); padding: 1rem; border-radius: var(--radius); align-items: center; }
+        input[type="text"] { flex: 1; padding: 0.6rem; background: var(--bg); border: 1px solid var(--border); color: white; border-radius: 4px; font-size: 1rem;}
+        button { background: var(--primary); color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; }
+        button:hover { opacity: 0.9; }
+        button:disabled { background: var(--border); cursor: not-allowed; }
+        
+        .line-card { background: var(--card); padding: 1rem; margin-bottom: 1rem; border-radius: var(--radius); display: flex; flex-direction: column; gap: 0.5rem; }
+        .line-card img { max-width: 100%; object-fit: contain; background: white; padding: 4px; border-radius: 4px; max-height: 80px; align-self: flex-start; }
+        .line-input { width: 100%; box-sizing: border-box; font-family: monospace; font-size: 1.1rem; padding: 0.8rem; }
+        
+        #loader { display: none; text-align: center; margin: 2rem 0; color: var(--primary); font-weight: bold; }
+        .stats { color: var(--accent); font-weight: bold; }
+        
+        .nav { margin-bottom: 2rem; }
+        .nav a { color: var(--primary); text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav"><a href="/">← Retour à l'application principale</a></div>
+        
+        <header>
+            <h1>Dawaliw-<span>ⵣ</span>-Studio</h1>
+            <p>Générateur collaboratif de Ground Truth (Vérité Terrain) pour Tesseract</p>
+        </header>
+
+        <div class="setup-bar">
+            <label>Votre pseudo (pour éviter les conflits) :</label>
+            <input type="text" id="username" placeholder="ex: yanis">
+            <span style="font-size: 0.9rem; color: var(--text-dim); margin-left: auto;" id="fileIndicator">Aucun fichier</span>
+        </div>
+
+        <div class="box" id="dropzone" onclick="document.getElementById('fileInput').click()">
+            <p>📂 Cliquez ou glissez une page ici (Image ou PDF)</p>
+            <p style="font-size:0.9rem;opacity:0.7">L'intelligence artificielle va découper les lignes et les pré-remplir.</p>
+            <input type="file" id="fileInput" style="display:none" accept="image/*,application/pdf,.pdf">
+        </div>
+
+        <div id="loader">⚙️ Découpage et lecture des lignes en cours...</div>
+
+        <div id="workspace" style="display: none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+                <div>Lignes détectées : <span id="lineCount" class="stats">0</span></div>
+                <button id="exportBtn" style="background:var(--accent); color:black;">💾 Exporter le lot (ZIP)</button>
+            </div>
+            
+            <div id="linesContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        // Protection basique pour les collaborateurs
+        const mdp = prompt("Accès restreint. Mot de passe collaborateur :");
+        if (mdp !== "amazigh26") {
+            alert("Accès refusé.");
+            window.location.href = "/";
+        }
+
+        let currentLines = [];
+        let currentFileName = "page";
+
+        document.getElementById('fileInput').addEventListener('change', (e) => processFile(e.target.files[0]));
+
+        const dropzone = document.getElementById('dropzone');
+        
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = "var(--primary)";
+        });
+        
+        dropzone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = "var(--border)";
+        });
+        
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = "var(--border)";
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                processFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        async function processFile(file) {
+            if (!file) return;
+
+            // Extraire le nom du fichier (sans extension) et le nettoyer
+            currentFileName = file.name.replace(/\.[^/.]+$/, "").replace(/[^a-z0-9]/gi, '_').toLowerCase();
+            document.getElementById('fileIndicator').textContent = "Fichier : " + file.name;
+
+            document.getElementById('loader').style.display = 'block';
+            document.getElementById('workspace').style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch('/api/segment', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    currentLines = data.lines;
+                    renderLines();
+                } else {
+                    alert("Erreur: " + data.detail);
+                }
+            } catch (err) {
+                alert("Erreur de connexion au serveur.");
+            }
+            
+            document.getElementById('loader').style.display = 'none';
+        }
+
+        function renderLines() {
+            const container = document.getElementById('linesContainer');
+            container.innerHTML = '';
+            
+            document.getElementById('lineCount').textContent = currentLines.length;
+            document.getElementById('workspace').style.display = 'block';
+
+            currentLines.forEach((line, index) => {
+                const card = document.createElement('div');
+                card.className = 'line-card';
+                card.innerHTML = `
+                    <div style="font-size:0.8rem;color:var(--primary)">Ligne ${index + 1}</div>
+                    <img src="${line.image_base64}">
+                    <input type="text" class="line-input" id="input_${index}" value="${line.text.replace(/"/g, '&quot;')}">
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Fonction pour convertir du base64 (data:image/png;base64,...) en Blob
+        function base64ToBlob(base64URI) {
+            const split = base64URI.split(',');
+            const type = split[0].match(/:(.*?);/)[1];
+            const bstr = atob(split[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while(n--){
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new Blob([u8arr], {type: type});
+        }
+
+        document.getElementById('exportBtn').addEventListener('click', async () => {
+            const usernameInput = document.getElementById('username').value.trim();
+            const userClean = usernameInput ? usernameInput.replace(/[^a-z0-9]/gi, '').toLowerCase() : 'anonyme';
+            
+            // Ajouter un horodatage (YYYYMMDD_HHMMSS) pour garantir l'unicité absolue
+            const now = new Date();
+            const timestamp = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+            
+            const prefix = `${userClean}_${currentFileName}_${timestamp}`;
+            const zip = new JSZip();
+            
+            const btn = document.getElementById('exportBtn');
+            btn.textContent = "⏳ Création du ZIP...";
+            btn.disabled = true;
+
+            currentLines.forEach((line, index) => {
+                // 1. Récupérer le texte corrigé par l'utilisateur
+                const correctedText = document.getElementById(`input_${index}`).value;
+                
+                // Formater le numéro de ligne (ex: 001, 002)
+                const num = String(index + 1).padStart(3, '0');
+                const baseName = `${prefix}_${num}`;
+                
+                // 2. Ajouter le fichier texte (.gt.txt)
+                zip.file(`${baseName}.gt.txt`, correctedText);
+                
+                // 3. Ajouter l'image (.tif) - Note: Tesseract gère bien les PNG renommés en TIF ou on peut laisser PNG
+                // On va utiliser l'extension .tif pour respecter la convention tesstrain
+                const blob = base64ToBlob(line.image_base64);
+                zip.file(`${baseName}.tif`, blob);
+            });
+
+            const content = await zip.generateAsync({type:"blob"});
+            saveAs(content, `${prefix}_groundtruth.zip`);
+            
+            btn.textContent = "💾 Exporter le lot (ZIP)";
+            btn.disabled = false;
+        });
+    </script>
+</body>
+</html>

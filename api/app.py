@@ -372,6 +372,104 @@ async def serve_aide():
     return HTMLResponse(content="<h1>Aide</h1><p>Page non trouvée.</p>")
 
 
+@app.get("/studio", response_class=HTMLResponse)
+async def serve_studio():
+    """Interface Dawaliw Studio pour générer du Ground Truth."""
+    path = os.path.join(STATIC_DIR, "studio.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h1>Studio</h1><p>Page non trouvée.</p>")
+
+import base64
+from io import BytesIO
+
+@app.post("/api/segment")
+async def segment_lines(
+    file: UploadFile = File(...),
+):
+    """
+    Découpe une image ligne par ligne pour l'entraînement (Ground Truth).
+    Retourne les images des lignes en base64 et le texte pré-rempli.
+    """
+    try:
+        contents = await file.read()
+        
+        # Vérifier si c'est un PDF
+        if file.filename and file.filename.lower().endswith('.pdf'):
+            try:
+                from pdf2image import convert_from_bytes
+                images = convert_from_bytes(contents, first_page=1, last_page=1, dpi=300)
+                if not images:
+                    raise ValueError("Impossible de lire le PDF")
+                image = images[0].convert("RGB")
+            except Exception as e:
+                return JSONResponse(status_code=400, content={"detail": f"Erreur PDF: Veuillez utiliser une image (PNG/JPG). Détail: {str(e)}"})
+        else:
+            try:
+                image = Image.open(io.BytesIO(contents)).convert("RGB")
+            except Exception:
+                return JSONResponse(status_code=400, content={"detail": "Le fichier n'est pas une image valide. Veuillez utiliser une image PNG, JPG ou un PDF."})
+        
+        # 1. Utiliser kab.traineddata pour obtenir les boîtes des mots
+        data = pytesseract.image_to_data(image, lang="kab", output_type=pytesseract.Output.DICT)
+        
+        lines = {}
+        for i in range(len(data['text'])):
+            word = data['text'][i].strip()
+            if not word:
+                continue
+                
+            # Identifiant unique de ligne
+            line_id = f"{data['block_num'][i]}_{data['par_num'][i]}_{data['line_num'][i]}"
+            
+            x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
+            
+            if line_id not in lines:
+                lines[line_id] = {
+                    "text": [],
+                    "box": {"left": x, "top": y, "right": x+w, "bottom": y+h}
+                }
+            else:
+                lines[line_id]["box"]["left"] = min(lines[line_id]["box"]["left"], x)
+                lines[line_id]["box"]["top"] = min(lines[line_id]["box"]["top"], y)
+                lines[line_id]["box"]["right"] = max(lines[line_id]["box"]["right"], x+w)
+                lines[line_id]["box"]["bottom"] = max(lines[line_id]["box"]["bottom"], y+h)
+            
+            lines[line_id]["text"].append(word)
+
+        results = []
+        padding = 4 # Marge autour du texte pour ne pas couper les accents
+        
+        for idx, (l_id, line_data) in enumerate(lines.items()):
+            # Découper l'image
+            box = line_data["box"]
+            left = max(0, box["left"] - padding)
+            top = max(0, box["top"] - padding)
+            right = min(image.width, box["right"] + padding)
+            bottom = min(image.height, box["bottom"] + padding)
+            
+            if (bottom - top) < 10 or (right - left) < 10:
+                continue
+                
+            line_img = image.crop((left, top, right, bottom))
+            buffered = BytesIO()
+            line_img.save(buffered, format="PNG")
+            img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            
+            raw_text = " ".join(line_data["text"])
+            text = normalize_tmz(raw_text)
+            
+            results.append({
+                "id": idx + 1,
+                "text": text,
+                "image_base64": f"data:image/png;base64,{img_str}"
+            })
+            
+        return {"status": "success", "lines": results}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
 @app.get("/api/health")
 async def health_check():
     """Vérifie que l'API et le modèle sont fonctionnels."""

@@ -6,8 +6,13 @@ PROJECT=/mnt/c/Users/hamoh/Documents/travail/tmz/tmz_ocr
 MODELS=$PROJECT/models
 
 # Vérifier que le modèle existe
-if [ ! -f "$MODELS/tmz_latn.traineddata" ]; then
-    echo "ERREUR: tmz_latn.traineddata non trouvé dans $MODELS"
+# if [ ! -f "$MODELS/tmz_latn.traineddata" ]; then
+#     echo "ERREUR: tmz_latn.traineddata non trouvé dans $MODELS"
+#     exit 1
+# fi
+
+if [ ! -f "$MODELS/kab.traineddata" ]; then
+    echo "ERREUR: kab.traineddata non trouvé dans $MODELS"
     exit 1
 fi
 
